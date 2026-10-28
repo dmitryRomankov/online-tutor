@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/.env
+**/.env.*
+**/*.tsbuildinfo
+**/src/generated
+.git
+.cache
+.agent-work
+BA
+Docs
+*.png
