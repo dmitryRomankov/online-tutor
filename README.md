@@ -43,17 +43,13 @@ At installation, npm reports six low-severity advisories through Jest's `deepmer
 
 ## Database and Redis
 
-Install/start Docker Desktop or another compatible Docker engine, then:
+The database foundation includes 35 normalized tables, versioned SQL migrations, separate runtime/migration/reporting roles, lookup/demo seeds, integrity triggers, masked reports and isolated PostgreSQL 18 checks. See the [database setup guide](docs/database/README.md), [dictionary](docs/database/data-dictionary.md) and [logical schema](docs/database/logical-schema.md).
 
-```bash
-npm run infra:up
-npm run db:validate
-npm run db:migrate -- --name init
-```
+Use `npm run db:bootstrap` with a dedicated empty database and administrator provisioning credentials, then `npm run db:deploy` with `MIGRATION_DATABASE_URL`. The running API must use `DATABASE_URL` as `tutor_app`, never the Compose administrator. No cloud or existing-volume reset is required. Run `npm run db:test` for isolated database verification.
 
-The migration command uses the `DATABASE_URL` in `api/.env`. The initial schema contains only users with a fixed tutor/student role. No migration has been applied by this setup. Generate the Prisma client with `npm run db:generate`; API build/typecheck also generate it. Later database services should create PrismaClient with the installed `@prisma/adapter-pg` adapter.
+Prisma models the tables; reviewed SQL migrations own checks, partial/expression indexes, views, triggers and privileges. Do not use `db push` or blindly generate a schema diff. API build/typecheck generate the Prisma client automatically. Authentication, resource authorization and the Prisma-backed feature services remain future application work.
 
-Compose binds PostgreSQL and Redis to loopback. The sample database credentials are for local development only. `npm run infra:down` preserves the Docker volumes.
+Compose binds PostgreSQL and Redis to loopback; `npm run infra:down` preserves its volumes. Compose's sample `diploma` login is for local provisioning only.
 
 ## Commands and checks
 

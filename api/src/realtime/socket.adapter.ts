@@ -3,7 +3,10 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import type { Server, ServerOptions } from 'socket.io';
 
 export class SocketAdapter extends IoAdapter {
-  constructor(app: INestApplicationContext, private readonly clientOrigin: string) {
+  constructor(
+    app: INestApplicationContext,
+    private readonly clientOrigin: string
+  ) {
     super(app);
   }
 

@@ -25,10 +25,16 @@
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
     "db:generate": "npm run db:generate --workspace @diploma/api",
     "db:validate": "npm run db:validate --workspace @diploma/api",
-    "db:migrate": "npm run db:migrate --workspace @diploma/api --",
+    "db:migrate": "npm run db:deploy",
     "db:studio": "npm run db:studio --workspace @diploma/api",
     "infra:up": "docker compose up -d",
-    "infra:down": "docker compose down"
+    "infra:down": "docker compose down",
+    "db:deploy": "npm run db:deploy --workspace @diploma/api",
+    "db:bootstrap": "node scripts/database/bootstrap.mjs",
+    "db:seed:reference": "node scripts/database/reference-seed.mjs",
+    "db:seed:demo": "node scripts/database/demo-seed.mjs",
+    "db:test": "node scripts/database/test.mjs",
+    "db:docs": "node scripts/database/docs.mjs"
   },
   "devDependencies": {
     "concurrently": "10.0.6",

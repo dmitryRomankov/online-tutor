@@ -13,6 +13,7 @@ api/src/generated/
 web/cypress/screenshots/
 web/cypress/videos/
 /BA/
-/Docs/
+/Docs/*
+!/docs/database/
 *.log
 .DS_Store

@@ -9,7 +9,10 @@ export class HealthController {
   @ApiOkResponse({
     schema: {
       type: 'object',
-      properties: { status: { type: 'string', example: 'ok' }, service: { type: 'string', example: 'api' } },
+      properties: {
+        status: { type: 'string', example: 'ok' },
+        service: { type: 'string', example: 'api' },
+      },
       required: ['status', 'service'],
     },
   })

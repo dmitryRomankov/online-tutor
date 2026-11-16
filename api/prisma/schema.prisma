@@ -1,3 +1,5 @@
+// SQL migrations own checks, views, triggers, expression and partial indexes.
+// Partial uniqueness does not make historical collections one-to-one.
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -6,21 +8,512 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["private", "public", "reporting"]
 }
 
-enum Role {
-  TUTOR
-  STUDENT
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_choice_keys {
+  input_id           String             @db.Uuid
+  choice_id          String             @db.Uuid
+  expected_position  Int?
+  task_input_choices task_input_choices @relation(fields: [input_id, choice_id], references: [input_id, choice_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([input_id, choice_id])
+  @@index([choice_id], map: "task_choice_keys_choice_idx")
+  @@schema("private")
 }
 
-// Initial identity schema only; no authentication or lesson features are implemented yet.
-model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  username     String   @unique @db.VarChar(64)
-  passwordHash String   @map("password_hash")
-  role         Role
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model task_text_keys {
+  input_id      String      @db.Uuid
+  variant_no    Int
+  accepted_text String
+  task_inputs   task_inputs @relation(fields: [input_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@map("users")
+  @@id([input_id, variant_no])
+  @@schema("private")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_credentials {
+  user_id       String @id @db.Uuid
+  password_hash String
+  users         users  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("private")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model assets {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id      String          @db.Uuid
+  object_key    String          @unique
+  media_type    String
+  byte_size     BigInt
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  users         users           @relation(fields: [owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lesson_items  lesson_items[]
+  task_versions task_versions[]
+
+  @@index([owner_id], map: "assets_owner_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model chat_messages {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id        String   @db.Uuid
+  sender_id         String   @db.Uuid
+  client_message_id String   @db.Uuid
+  body              String
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  users             users    @relation(fields: [sender_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sessions          sessions @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([session_id, sender_id, client_message_id])
+  @@index([session_id, created_at, id], map: "chat_messages_order_idx")
+  @@index([sender_id], map: "chat_messages_sender_idx")
+  @@schema("public")
+}
+
+model feedback_releases {
+  session_item_id String        @id @db.Uuid
+  released_at     DateTime      @default(now()) @db.Timestamptz(6)
+  session_items   session_items @relation(fields: [session_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model homework_assignments {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tutor_student_id   String               @db.Uuid
+  title              String               @db.VarChar(200)
+  due_at             DateTime?            @db.Timestamptz(6)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  tutor_students     tutor_students       @relation(fields: [tutor_student_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  homework_items     homework_items[]
+  homework_revisions homework_revisions[]
+
+  @@index([tutor_student_id, created_at(sort: Desc)], map: "homework_assignments_list_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model homework_feedback_comments {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  response_revision_id String             @db.Uuid
+  comment              String
+  created_at           DateTime           @default(now()) @db.Timestamptz(6)
+  response_revisions   response_revisions @relation(fields: [response_revision_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([response_revision_id, created_at(sort: Desc)], map: "homework_feedback_revision_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model homework_items {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignment_id        String               @db.Uuid
+  task_version_id      String               @db.Uuid
+  position             Int
+  homework_assignments homework_assignments @relation(fields: [assignment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  task_versions        task_versions        @relation(fields: [task_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responses            responses[]
+
+  @@unique([assignment_id, position])
+  @@index([task_version_id], map: "homework_items_version_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model homework_revisions {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignment_id        String               @db.Uuid
+  revision_no          Int
+  created_at           DateTime             @default(now()) @db.Timestamptz(6)
+  submitted_at         DateTime?            @db.Timestamptz(6)
+  returned_at          DateTime?            @db.Timestamptz(6)
+  return_note          String?
+  homework_assignments homework_assignments @relation(fields: [assignment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responses            responses[]
+
+  @@unique([assignment_id, revision_no])
+  @@schema("public")
+}
+
+model input_kinds {
+  code        String        @id
+  label       String        @unique
+  task_inputs task_inputs[]
+
+  @@schema("public")
+}
+
+model lesson_item_kinds {
+  code         String         @id
+  label        String         @unique
+  lesson_items lesson_items[]
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model lesson_items {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lesson_version_id String            @db.Uuid
+  position          Int
+  kind_code         String
+  text_content      String?
+  asset_id          String?           @db.Uuid
+  link_url          String?
+  task_version_id   String?           @db.Uuid
+  assets            assets?           @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lesson_item_kinds lesson_item_kinds @relation(fields: [kind_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  lesson_versions   lesson_versions   @relation(fields: [lesson_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  task_versions     task_versions?    @relation(fields: [task_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  session_items     session_items[]
+
+  @@unique([lesson_version_id, position])
+  @@index([asset_id], map: "lesson_items_asset_idx")
+  @@index([task_version_id], map: "lesson_items_task_idx")
+  @@schema("public")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model lesson_notifications {
+  session_id String    @id @db.Uuid
+  read_at    DateTime? @db.Timestamptz(6)
+  sessions   sessions  @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model lesson_versions {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lesson_id       String            @db.Uuid
+  version_no      Int
+  title           String            @db.VarChar(200)
+  published_at    DateTime?         @db.Timestamptz(6)
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  lesson_items    lesson_items[]
+  lessons         lessons           @relation(fields: [lesson_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  session_content session_content[]
+
+  @@unique([lesson_id, version_no])
+  @@schema("public")
+}
+
+model lessons {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id        String            @db.Uuid
+  archived_at     DateTime?         @db.Timestamptz(6)
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  lesson_versions lesson_versions[]
+  users           users             @relation(fields: [owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sessions        sessions[]
+
+  @@index([owner_id, archived_at, created_at(sort: Desc)], map: "lessons_owner_library_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model live_feedback_comments {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  response_revision_id String             @db.Uuid
+  comment              String
+  created_at           DateTime           @default(now()) @db.Timestamptz(6)
+  released_at          DateTime?          @db.Timestamptz(6)
+  response_revisions   response_revisions @relation(fields: [response_revision_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([response_revision_id, created_at(sort: Desc)], map: "live_feedback_revision_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model response_choice_values {
+  response_revision_id String             @db.Uuid
+  choice_id            String             @db.Uuid
+  position             Int
+  task_choices         task_choices       @relation(fields: [choice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  response_revisions   response_revisions @relation(fields: [response_revision_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([response_revision_id, position])
+  @@unique([response_revision_id, choice_id])
+  @@index([choice_id], map: "response_choice_values_choice_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model response_revisions {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  response_id                String                       @db.Uuid
+  revision_no                Int
+  client_event_id            String                       @db.Uuid
+  text_value                 String?
+  write_transaction          BigInt                       @default(dbgenerated("((pg_current_xact_id())::text)::bigint"))
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  homework_feedback_comments homework_feedback_comments[]
+  live_feedback_comments     live_feedback_comments[]
+  response_choice_values     response_choice_values[]
+  responses                  responses                    @relation(fields: [response_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([response_id, client_event_id])
+  @@unique([response_id, revision_no])
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model responses {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  input_id             String               @db.Uuid
+  session_item_id      String?              @db.Uuid
+  homework_revision_id String?              @db.Uuid
+  homework_item_id     String?              @db.Uuid
+  response_revisions   response_revisions[]
+  homework_items       homework_items?      @relation(fields: [homework_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  homework_revisions   homework_revisions?  @relation(fields: [homework_revision_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  task_inputs          task_inputs          @relation(fields: [input_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  session_items        session_items?       @relation(fields: [session_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([homework_item_id], map: "responses_homework_item_idx")
+  @@index([input_id], map: "responses_input_idx")
+  @@schema("public")
+}
+
+model roles {
+  code  String  @id
+  label String  @unique
+  users users[]
+
+  @@schema("public")
+}
+
+model session_active_items {
+  session_id      String        @id @db.Uuid
+  session_item_id String        @unique @db.Uuid
+  sessions        sessions      @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  session_items   session_items @relation(fields: [session_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model session_content {
+  session_id        String          @id @db.Uuid
+  lesson_version_id String          @db.Uuid
+  pinned_at         DateTime        @default(now()) @db.Timestamptz(6)
+  lesson_versions   lesson_versions @relation(fields: [lesson_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sessions          sessions        @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  session_items     session_items[]
+
+  @@index([lesson_version_id], map: "session_content_version_idx")
+  @@schema("public")
+}
+
+model session_items {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id           String                @db.Uuid
+  lesson_item_id       String                @db.Uuid
+  revealed_at          DateTime              @default(now()) @db.Timestamptz(6)
+  feedback_releases    feedback_releases?
+  responses            responses[]
+  session_active_items session_active_items?
+  lesson_items         lesson_items          @relation(fields: [lesson_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  session_content      session_content       @relation(fields: [session_id], references: [session_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([session_id, lesson_item_id])
+  @@index([lesson_item_id], map: "session_items_lesson_item_idx")
+  @@schema("public")
+}
+
+model session_states {
+  code     String     @id
+  label    String     @unique
+  sessions sessions[]
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sessions {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tutor_student_id     String                @db.Uuid
+  planned_lesson_id    String                @db.Uuid
+  scheduled_start      DateTime              @db.Timestamptz(6)
+  duration_minutes     Int
+  state_code           String                @default("scheduled")
+  started_at           DateTime?             @db.Timestamptz(6)
+  ended_at             DateTime?             @db.Timestamptz(6)
+  cancelled_at         DateTime?             @db.Timestamptz(6)
+  created_at           DateTime              @default(now()) @db.Timestamptz(6)
+  chat_messages        chat_messages[]
+  lesson_notifications lesson_notifications?
+  session_active_items session_active_items?
+  session_content      session_content?
+  lessons              lessons               @relation(fields: [planned_lesson_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  session_states       session_states        @relation(fields: [state_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  tutor_students       tutor_students        @relation(fields: [tutor_student_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([planned_lesson_id], map: "sessions_lesson_idx")
+  @@index([tutor_student_id, scheduled_start(sort: Desc)], map: "sessions_schedule_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_choices {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_version_id        String                   @db.Uuid
+  position               Int
+  label                  String
+  response_choice_values response_choice_values[]
+  task_versions          task_versions            @relation(fields: [task_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  task_input_choices     task_input_choices[]
+
+  @@unique([task_version_id, position])
+  @@schema("public")
+}
+
+model task_input_choices {
+  input_id         String            @db.Uuid
+  choice_id        String            @db.Uuid
+  task_choice_keys task_choice_keys?
+  task_choices     task_choices      @relation(fields: [choice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  task_inputs      task_inputs       @relation(fields: [input_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([input_id, choice_id])
+  @@index([choice_id], map: "task_input_choices_choice_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_inputs {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_version_id    String               @db.Uuid
+  position           Int
+  kind_code          String
+  label              String
+  required           Boolean              @default(true)
+  marker_x           Decimal?             @db.Decimal(6, 3)
+  marker_y           Decimal?             @db.Decimal(6, 3)
+  task_text_keys     task_text_keys[]
+  responses          responses[]
+  task_input_choices task_input_choices[]
+  input_kinds        input_kinds          @relation(fields: [kind_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+  task_versions      task_versions        @relation(fields: [task_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([task_version_id, position])
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_types {
+  code          String          @id
+  label         String          @unique
+  checking_mode String
+  task_versions task_versions[]
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_versions {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id        String           @db.Uuid
+  version_no     Int
+  type_code      String
+  title          String           @db.VarChar(200)
+  prompt         String
+  image_asset_id String?          @db.Uuid
+  published_at   DateTime?        @db.Timestamptz(6)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  homework_items homework_items[]
+  lesson_items   lesson_items[]
+  task_choices   task_choices[]
+  task_inputs    task_inputs[]
+  assets         assets?          @relation(fields: [image_asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tasks          tasks            @relation(fields: [task_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  task_types     task_types       @relation(fields: [type_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([task_id, version_no])
+  @@index([image_asset_id], map: "task_versions_image_idx")
+  @@index([type_code], map: "task_versions_type_idx")
+  @@schema("public")
+}
+
+model tasks {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id      String          @db.Uuid
+  archived_at   DateTime?       @db.Timestamptz(6)
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  task_versions task_versions[]
+  users         users           @relation(fields: [owner_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([owner_id, archived_at, created_at(sort: Desc)], map: "tasks_owner_library_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutor_invitations {
+  id                                                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tutor_id                                           String    @db.Uuid
+  token_hash                                         String    @unique @db.Char(64)
+  created_at                                         DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at                                         DateTime  @db.Timestamptz(6)
+  revoked_at                                         DateTime? @db.Timestamptz(6)
+  accepted_student_id                                String?   @db.Uuid
+  accepted_at                                        DateTime? @db.Timestamptz(6)
+  users_tutor_invitations_accepted_student_idTousers users?    @relation("tutor_invitations_accepted_student_idTousers", fields: [accepted_student_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_tutor_invitations_tutor_idTousers            users     @relation("tutor_invitations_tutor_idTousers", fields: [tutor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([accepted_student_id], map: "tutor_invitations_student_idx")
+  @@index([tutor_id], map: "tutor_invitations_tutor_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutor_students {
+  id                                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tutor_id                               String                 @db.Uuid
+  student_id                             String                 @db.Uuid
+  linked_at                              DateTime               @default(now()) @db.Timestamptz(6)
+  ended_at                               DateTime?              @db.Timestamptz(6)
+  homework_assignments                   homework_assignments[]
+  sessions                               sessions[]
+  users_tutor_students_student_idTousers users                  @relation("tutor_students_student_idTousers", fields: [student_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_tutor_students_tutor_idTousers   users                  @relation("tutor_students_tutor_idTousers", fields: [tutor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([student_id], map: "tutor_students_student_idx")
+  @@index([tutor_id, ended_at], map: "tutor_students_tutor_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model users {
+  id                                                             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role_code                                                      String
+  username                                                       String              @db.VarChar(64)
+  display_name                                                   String?             @db.VarChar(160)
+  timezone                                                       String              @default("UTC")
+  auth_epoch                                                     Int                 @default(0)
+  retired_at                                                     DateTime?           @db.Timestamptz(6)
+  created_at                                                     DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at                                                     DateTime            @default(now()) @db.Timestamptz(6)
+  user_credentials                                               user_credentials?
+  assets                                                         assets[]
+  chat_messages                                                  chat_messages[]
+  lessons                                                        lessons[]
+  tasks                                                          tasks[]
+  tutor_invitations_tutor_invitations_accepted_student_idTousers tutor_invitations[] @relation("tutor_invitations_accepted_student_idTousers")
+  tutor_invitations_tutor_invitations_tutor_idTousers            tutor_invitations[] @relation("tutor_invitations_tutor_idTousers")
+  tutor_students_tutor_students_student_idTousers                tutor_students[]    @relation("tutor_students_student_idTousers")
+  tutor_students_tutor_students_tutor_idTousers                  tutor_students[]    @relation("tutor_students_tutor_idTousers")
+  roles                                                          roles               @relation(fields: [role_code], references: [code], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
 }

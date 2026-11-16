@@ -4,6 +4,6 @@ import { defineConfig } from 'prisma/config';
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: { path: 'prisma/migrations' },
-  // Generation/validation do not need a running database. Migration commands require DATABASE_URL.
-  datasource: { url: process.env.DATABASE_URL ?? 'postgresql://diploma:diploma@localhost:5432/diploma?schema=public' },
+  // Reviewed DDL uses a separate migration login; generation/validation need no database.
+  datasource: { url: process.env.MIGRATION_DATABASE_URL ?? 'postgresql://tutor_migrator@localhost:5432/online_tutor_demo?schema=public' },
 });
