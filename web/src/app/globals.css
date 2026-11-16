@@ -1,29 +1,159 @@
-:root { color-scheme: light; --ink: #18322c; --muted: #5c6d66; --accent: #25634f; }
-* { box-sizing: border-box; }
-body { margin: 0; background: #f7f8f3; color: var(--ink); font-family: Arial, Helvetica, sans-serif; line-height: 1.6; }
-a { color: var(--accent); text-underline-offset: 4px; }
-.workspace { max-width: 1120px; margin: auto; padding: 36px 40px 24px; }
-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.brand { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
-.badge { font-size: 12px; padding: 6px 12px; border: 1px solid #d4ddd4; border-radius: 30px; }
-.intro { padding: 92px 0 64px; }
-.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
-h1 { font-size: clamp(44px, 7vw, 80px); line-height: 1.08; letter-spacing: -3px; margin: 20px 0; }
-.description { max-width: 570px; font-size: 19px; color: var(--muted); }
-.setup { display: grid; grid-template-columns: 1.5fr 1fr; gap: 40px; align-items: center; background: #fff; border: 1px solid #dfe6dc; border-radius: 20px; padding: 32px; }
-h2 { font-size: 23px; line-height: 1.3; margin: 12px 0; }
-.setup p:not(.eyebrow) { color: var(--muted); }
-.status { border-left: 1px solid #dfe6dc; padding-left: 32px; }
-.status-label { display: flex; align-items: center; gap: 10px; font-weight: 700; }
-.status-dot { width: 9px; height: 9px; border-radius: 50%; background: #9ba89e; flex-shrink: 0; }
-.status-dot[data-connected="true"] { background: #24825c; }
-.status p { font-size: 14px; }
-footer { margin-top: 44px; font-size: 13px; color: var(--muted); }
+:root {
+  color-scheme: light;
+  --ink: #18322c;
+  --muted: #5c6d66;
+  --accent: #25634f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f7f8f3;
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.6;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 4px;
+}
+
+.workspace {
+  max-width: 1120px;
+  margin: auto;
+  padding: 36px 40px 24px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 6px 12px;
+  border: 1px solid #d4ddd4;
+  border-radius: 30px;
+}
+
+.intro {
+  padding: 92px 0 64px;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+h1 {
+  font-size: clamp(44px, 7vw, 80px);
+  line-height: 1.08;
+  letter-spacing: -3px;
+  margin: 20px 0;
+}
+
+.description {
+  max-width: 570px;
+  font-size: 19px;
+  color: var(--muted);
+}
+
+.setup {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 40px;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #dfe6dc;
+  border-radius: 20px;
+  padding: 32px;
+}
+
+h2 {
+  font-size: 23px;
+  line-height: 1.3;
+  margin: 12px 0;
+}
+
+.setup p:not(.eyebrow) {
+  color: var(--muted);
+}
+
+.status {
+  border-left: 1px solid #dfe6dc;
+  padding-left: 32px;
+}
+
+.status-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #9ba89e;
+  flex-shrink: 0;
+}
+
+.status-dot[data-connected="true"] {
+  background: #24825c;
+}
+
+.status p {
+  font-size: 14px;
+}
+
+footer {
+  margin-top: 44px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 @media (max-width: 700px) {
-  .workspace { padding: 24px; }
-  .intro { padding: 64px 0 40px; }
-  .setup { grid-template-columns: 1fr; gap: 20px; padding: 24px; }
-  .status { border-left: 0; border-top: 1px solid #dfe6dc; padding: 20px 0 0; }
-  h1 { letter-spacing: -2px; }
-  .badge { font-size: 10px; }
+  .workspace {
+    padding: 24px;
+  }
+
+  .intro {
+    padding: 64px 0 40px;
+  }
+
+  .setup {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 24px;
+  }
+
+  .status {
+    border-left: 0;
+    border-top: 1px solid #dfe6dc;
+    padding: 20px 0 0;
+  }
+
+  h1 {
+    letter-spacing: -2px;
+  }
+
+  .badge {
+    font-size: 10px;
+  }
 }
