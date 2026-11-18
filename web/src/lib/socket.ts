@@ -6,7 +6,9 @@ export function createClassroomSocket() {
     /\/$/,
     ''
   );
+  // An empty base URL connects to the page's own origin (the Vercel deployment).
   return io(`${baseUrl}/classroom`, {
+    path: '/api/socket.io',
     autoConnect: false,
     transports: ['websocket'],
     withCredentials: true,

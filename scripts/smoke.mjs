@@ -41,7 +41,7 @@ async function waitFor(url, child) {
 
 async function probeSocket(origin, expectConnection) {
   const socket = io('http://127.0.0.1:3001/classroom', {
-    transports: ['websocket'], reconnection: false, timeout: 5000,
+    path: '/api/socket.io', transports: ['websocket'], reconnection: false, timeout: 5000,
     extraHeaders: { Origin: origin },
   });
   try {

@@ -6,5 +6,5 @@ export default tseslint.config(
   { ignores: ['dist/**', 'coverage/**', 'src/generated/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  { languageOptions: { globals: { ...globals.node, ...globals.jest } } },
+  { languageOptions: { globals: { ...globals.node, ...globals.jest } } }
 );

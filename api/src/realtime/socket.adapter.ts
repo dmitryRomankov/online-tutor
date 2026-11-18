@@ -2,6 +2,9 @@ import type { INestApplicationContext } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import type { Server, ServerOptions } from 'socket.io';
 
+// Under the REST prefix so a single `/api` route reaches both HTTP and Socket.IO traffic.
+export const SOCKET_IO_PATH = '/api/socket.io';
+
 export class SocketAdapter extends IoAdapter {
   constructor(
     app: INestApplicationContext,
@@ -13,6 +16,7 @@ export class SocketAdapter extends IoAdapter {
   override createIOServer(port: number, options?: Partial<ServerOptions>): Server {
     const socketOptions: Partial<ServerOptions> = {
       ...options,
+      path: SOCKET_IO_PATH,
       cors: { origin: this.clientOrigin, credentials: true },
       allowRequest: (request, callback) => {
         const origin = request.headers.origin;

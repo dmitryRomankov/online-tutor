@@ -17,7 +17,7 @@ npm run dev
 - API liveness: http://localhost:3001/api/health
 - Swagger UI: http://localhost:3001/api/docs
 - OpenAPI JSON: http://localhost:3001/api/docs-json
-- Socket.IO namespace: `/classroom`, on the API port. The initial `system:ping` event returns `system:pong`.
+- Socket.IO namespace: `/classroom`, on the API port with the Socket.IO path `/api/socket.io`. The initial `system:ping` event returns `system:pong`.
 
 The frontend displays the API connection status. Health and the connection probe work without PostgreSQL, Redis or cloud credentials. They do not indicate those integrations are ready. The Socket.IO probe does not expose lesson data; authentication and room authorization must be added with classroom features.
 
@@ -83,4 +83,21 @@ docker build -f web/Dockerfile -t diploma-web .
 
 For deployment, pass the public API, Socket.IO and LiveKit URLs as frontend **build arguments** (`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_LIVEKIT_URL`). Next.js embeds those values at build time. Give the backend its private settings at runtime and set `CLIENT_ORIGIN` to the frontend's exact HTTPS origin. Keep LiveKit API secrets, database credentials and Azure credentials on the backend.
 
-The intended cloud target is Azure Container Apps with separate FE/BE containers, PostgreSQL Flexible Server, Managed Redis, Blob Storage and LiveKit Cloud. No cloud resources are provisioned. Start with one API replica; authenticated sockets, session/CSRF protection, durable answer synchronization and multi-replica Socket.IO coordination belong to feature implementation.
+The Azure deployment option uses Container Apps with separate FE/BE containers, PostgreSQL Flexible Server, Managed Redis, Blob Storage and LiveKit Cloud. Start with one API replica; authenticated sockets, session/CSRF protection, durable answer synchronization and multi-replica Socket.IO coordination belong to feature implementation.
+
+### Vercel
+
+Use the `online-tutor` repository root for the Vercel project. The project serves two [services](https://vercel.com/docs/services) on one domain.
+
+- `web` runs Next.js from `web/`. It serves the frontend and `/api/health`. Its health handler calls NestJS over `INTERNAL_API_URL`, which Vercel injects at runtime. Leave that variable to Vercel.
+- `api` runs NestJS from `api/` using the Node framework preset. Its entry point exports the HTTP server with Socket.IO attached. It handles the other `/api/*` requests, including Swagger at `/api/docs` and Socket.IO at `/api/socket.io`.
+
+Enable Vercel system environment variables so the frontend uses the shared domain. Leave `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` unset for the same-origin defaults. Set `CLIENT_ORIGIN` to the exact frontend HTTPS origin for each deployed environment.
+
+To test both services locally, run this command from the repository root after `npm ci`.
+
+```sh
+CLIENT_ORIGIN=http://127.0.0.1:3417 vercel dev --local --listen 127.0.0.1:3417
+```
+
+Open `http://127.0.0.1:3417` and check `/api/health` for `{"status":"ok","service":"api"}`. The health result verifies the call from Next.js to NestJS.
