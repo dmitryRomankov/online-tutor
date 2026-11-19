@@ -26,6 +26,12 @@ Use Node 24 (`nvm use`) and the existing installed dependencies (`npm ci` on a n
 
 If a database already contains the previous identity-only table or other incompatible objects, stop and inspect/back up it first. These are initial migrations, not an automatic upgrade or adoption script. No existing database was reset during development.
 
+## Neon and Vercel configuration
+
+Store local credentials in the ignored `api/.env` file. Use a pooled Neon connection as `tutor_app` for `DATABASE_URL`. The optional `DATABASE_URL_UNPOOLED` uses the same restricted role on the direct endpoint. Use a direct connection as `tutor_migrator` for `MIGRATION_DATABASE_URL`, and the provider's owner connection only for `ADMIN_DATABASE_URL` during provisioning. Bootstrap supports managed database owners by temporarily allowing the schema ownership transfer and granting schema-creation privileges to the NOLOGIN owner.
+
+For Vercel, copy the restricted `DATABASE_URL` from local configuration into the project's runtime environment. The Neon integration's default owner URL has administrative privileges. Keep migration, reporting and administrator credentials in their respective tools. Local `.env` changes do not update Vercel environment variables. Apply migrations explicitly with the direct migrator connection before deploying features that use the database.
+
 ## Reproduce verification
 
 ```bash

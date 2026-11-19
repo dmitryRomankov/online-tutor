@@ -34,9 +34,24 @@ export async function bootstrap(client, passwords) {
       throw new Error('Unexpected database role membership; review manually');
     await client.query('GRANT tutor_owner TO tutor_migrator');
     const database = (await client.query('SELECT current_database() AS name')).rows[0].name;
+    // Managed database owners can create roles without being PostgreSQL superusers.
+    const { rows: [administrator] } = await client.query(
+      `SELECT current_user AS name, pg_has_role(current_user, 'tutor_owner', 'SET') AS can_set_owner,
+        EXISTS(SELECT 1 FROM pg_auth_members
+          WHERE roleid='tutor_owner'::regrole AND member=current_user::regrole) AS owner_member`
+    );
+    if (!administrator.can_set_owner) {
+      await client.query(`GRANT tutor_owner TO ${identifier(administrator.name)} WITH SET TRUE`);
+    }
+    // The schema owner also needs this privilege to create private/reporting schemas.
+    await client.query(`GRANT CREATE ON DATABASE ${identifier(database)} TO tutor_owner`);
     await client.query(`REVOKE TEMPORARY ON DATABASE ${identifier(database)} FROM PUBLIC`);
     await client.query('ALTER SCHEMA public OWNER TO tutor_owner');
     await client.query('REVOKE CREATE ON SCHEMA public FROM PUBLIC');
+    if (!administrator.can_set_owner) {
+      const privilege = administrator.owner_member ? 'SET OPTION FOR tutor_owner' : 'tutor_owner';
+      await client.query(`REVOKE ${privilege} FROM ${identifier(administrator.name)}`);
+    }
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
