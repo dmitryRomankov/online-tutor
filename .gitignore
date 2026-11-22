@@ -18,3 +18,5 @@ web/cypress/videos/
 !/docs/database/
 *.log
 .DS_Store
+
+/api/vercel-output/

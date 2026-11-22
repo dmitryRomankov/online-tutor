@@ -21,6 +21,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:coverage": "npm run test:coverage --workspaces --if-present",
+    "test:api:deployment": "npm run build:vercel --workspace @diploma/api && node scripts/verify-api-deployment.mjs",
     "test:smoke": "node scripts/smoke.mjs",
     "test:auth:integration": "node scripts/database/test.mjs --auth",
     "test:e2e": "node scripts/smoke.mjs --e2e",

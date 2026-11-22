@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "npm run db:generate && nest build",
-    "build:vercel": "npm run build && esbuild dist/vercel.js --bundle --platform=node --target=node24 --format=esm --packages=external --keep-names --outfile=dist/vercel.mjs",
+    "build:vercel": "npm run build && esbuild dist/vercel.js --bundle --platform=node --target=node24 --format=esm --packages=external --keep-names --outfile=vercel-output/app.mjs",
     "start": "node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\" prisma.config.ts --max-warnings 0",
     "typecheck": "npm run db:generate && tsc --noEmit",

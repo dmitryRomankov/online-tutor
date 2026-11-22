@@ -6,6 +6,7 @@
       "framework": "node",
       "entrypoint": "vercel.mjs",
       "buildCommand": "npm run build:vercel",
+      "outputDirectory": "vercel-output",
       "devCommand": "npm run dev"
     },
     "web": {

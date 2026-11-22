@@ -117,6 +117,8 @@ Use the `online-tutor` repository root for the Vercel project. The project serve
 - `web` runs Next.js from `web/`. It serves the frontend and `/api/health`. Its health handler calls NestJS over `INTERNAL_API_URL`, which Vercel injects at runtime. Leave that variable to Vercel.
 - `api` runs NestJS from `api/` using the Node framework preset. Its entry point exports the HTTP server with Socket.IO attached. It handles the other `/api/*` requests, including Swagger at `/api/docs` and Socket.IO at `/api/socket.io`.
 
+The API service sets `outputDirectory: "vercel-output"`. Its build puts only `app.mjs` there. Keep this separate from Nest's `dist`: Vercel can auto-detect `dist/app.js` as the final handler even when the build log names another entrypoint. Run `npm run test:api:deployment` to build and boot the isolated deployment output under CommonJS package scope, checking health and anonymous authentication.
+
 Enable Vercel system environment variables so the frontend uses the shared domain. Leave `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` unset for the same-origin defaults. Set `CLIENT_ORIGIN` to the exact frontend HTTPS origin for each deployed environment.
 
 To test both services locally, run this command from the repository root after `npm ci`.
