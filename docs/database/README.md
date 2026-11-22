@@ -5,7 +5,7 @@ This directory contains the database deliverables for Online Tutor. Cloud provis
 | Deliverable | Location |
 | --- | --- |
 | Complete column types, defaults, nullability, keys, checks and indexes | [Data dictionary](data-dictionary.md) |
-| All 35 tables and 50 foreign keys | [Logical ER diagram](logical-schema.md) |
+| All 37 tables and 50 foreign keys | [Logical ER diagram](logical-schema.md) |
 | Functional dependencies and normalization | [Normalization to 3NF](normalization.md) |
 | Database roles, authorization boundary and retirement | [Security](security.md) |
 | Indexes, views, triggers, lifecycle functions and examples | [Advanced features](advanced-features.md) |
@@ -46,7 +46,7 @@ The suite checks lifecycle constraints, version immutability, lookups, ten-forma
 
 ## Working with Prisma and SQL
 
-The Prisma schema describes all 35 relational models. SQL migrations additionally own checks, partial/expression indexes, views, triggers, functions and grants. These features must survive future migrations. Partial unique indexes intentionally remain SQL-only: a single active link/draft does **not** make the historical collection a one-to-one Prisma relation. Do not overwrite this mapping blindly with `db pull`.
+The Prisma schema describes all 37 relational models. SQL migrations additionally own checks, partial/expression indexes, views, triggers, functions and grants. These features must survive future migrations. Partial unique indexes intentionally remain SQL-only: a single active link/draft does **not** make the historical collection a one-to-one Prisma relation. Do not overwrite this mapping blindly with `db pull`.
 
 Use `npm run db:deploy` to apply reviewed migrations. For future changes, add a new ordered SQL migration and update the Prisma model in the same change; test from an empty database and against any required upgrade fixture. Do not edit previously deployed migration files. `db:migrate` currently aliases deploy so it cannot silently generate a destructive schema diff. `db:studio` uses the runtime URL, not the migration URL; it can see sensitive backend data, so keep it local.
 

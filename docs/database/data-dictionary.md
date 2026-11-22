@@ -2,6 +2,52 @@
 
 Generated from PostgreSQL 18 by `npm run db:docs`. SQL migrations remain authoritative. UUID keys are stable; timestamps are `timestamptz`; all foreign keys use NO ACTION on update/delete to protect history. Nullable columns are explicitly marked.
 
+## private.auth_rate_limits
+
+Shared fixed-window authentication limits using HMAC-hashed IP keys; expires after one minute.
+
+| Column | PostgreSQL type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| key_hash | character varying(64) | NO | — | HMAC-SHA256 of client IP using shared session secret; no raw IP address. |
+| attempts | integer | NO | — | Authentication attempts in current fixed window; capped at 21, with attempts 1–20 allowed. |
+| expires_at | timestamp with time zone | NO | — | Invitation or authentication rate-window expiry time, depending on the table. |
+
+Constraints:
+
+- `auth_rate_limits_attempts_check`: `CHECK (((attempts >= 1) AND (attempts <= 21)))`
+- `auth_rate_limits_attempts_not_null`: `NOT NULL attempts`
+- `auth_rate_limits_expires_at_not_null`: `NOT NULL expires_at`
+- `auth_rate_limits_key_hash_check`: `CHECK (((key_hash)::text ~ '^[a-f0-9]{64}$'::text))`
+- `auth_rate_limits_key_hash_not_null`: `NOT NULL key_hash`
+- `auth_rate_limits_pkey`: `PRIMARY KEY (key_hash)`
+
+Indexes (including PK/unique enforcement):
+
+- `auth_rate_limits_expiry_idx`: `CREATE INDEX auth_rate_limits_expiry_idx ON private.auth_rate_limits USING btree (expires_at)`
+- `auth_rate_limits_pkey`: `CREATE UNIQUE INDEX auth_rate_limits_pkey ON private.auth_rate_limits USING btree (key_hash)`
+
+## private.auth_sessions
+
+Private server-side login sessions referenced by HttpOnly cookies; unrelated to lesson sessions.
+
+| Column | PostgreSQL type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| sid | character varying | NO | — | Cryptographically random login session ID, referenced by a signed HttpOnly cookie. |
+| sess | json | NO | — | Server-side session JSON: cookie metadata and user ID/auth epoch/absolute expiry; no password or answer keys. |
+| expire | timestamp with time zone | NO | — | Indexed absolute login session expiry; expired sessions are rejected before cleanup. |
+
+Constraints:
+
+- `auth_sessions_expire_not_null`: `NOT NULL expire`
+- `auth_sessions_pkey`: `PRIMARY KEY (sid)`
+- `auth_sessions_sess_not_null`: `NOT NULL sess`
+- `auth_sessions_sid_not_null`: `NOT NULL sid`
+
+Indexes (including PK/unique enforcement):
+
+- `auth_sessions_expire_idx`: `CREATE INDEX auth_sessions_expire_idx ON private.auth_sessions USING btree (expire)`
+- `auth_sessions_pkey`: `CREATE UNIQUE INDEX auth_sessions_pkey ON private.auth_sessions USING btree (sid)`
+
 ## private.task_choice_keys
 
 Private expected choice sets or token order.
@@ -897,7 +943,7 @@ Hashed invitation tokens, expiry and acceptance/revocation outcome.
 | tutor_id | uuid | NO | — | Reference to tutor. |
 | token_hash | character(64) | NO | — | SHA-256 hex digest of invitation token; never the raw token. |
 | created_at | timestamp with time zone | NO | now() | Record creation time. |
-| expires_at | timestamp with time zone | NO | — | Invitation expiry time. |
+| expires_at | timestamp with time zone | NO | — | Invitation or authentication rate-window expiry time, depending on the table. |
 | revoked_at | timestamp with time zone | YES | — | Invitation revocation time. |
 | accepted_student_id | uuid | YES | — | Reference to accepted student. |
 | accepted_at | timestamp with time zone | YES | — | Invitation acceptance time. |
@@ -964,30 +1010,35 @@ Stable account identity, fixed profile role and retirement/authentication state.
 | --- | --- | --- | --- | --- |
 | id | uuid | NO | gen_random_uuid() | Stable UUID identifier. |
 | role_code | text | NO | — | Fixed tutor/student profile type. |
-| username | character varying(64) | NO | — | Login name; case-insensitively unique. |
-| display_name | character varying(160) | YES | — | Optional profile name; cleared on retirement. |
 | timezone | text | NO | 'UTC'::text | Valid PostgreSQL/IANA timezone name. |
 | auth_epoch | integer | NO | 0 | Authentication generation; incremented on retirement. |
 | retired_at | timestamp with time zone | YES | — | Retirement time; NULL means the account is active. |
 | created_at | timestamp with time zone | NO | now() | Record creation time. |
 | updated_at | timestamp with time zone | NO | now() | Last account update time, maintained by trigger. |
+| email | character varying(254) | NO | — | Trimmed lowercase login email; unique without case distinctions. |
+| name | character varying(100) | NO | — | Required given name, 1–100 characters; anonymized on retirement. |
+| lastname | character varying(100) | NO | — | Required family name, 1–100 characters; anonymized on retirement. |
 
 Constraints:
 
 - `users_auth_epoch_check`: `CHECK ((auth_epoch >= 0))`
 - `users_auth_epoch_not_null`: `NOT NULL auth_epoch`
 - `users_created_at_not_null`: `NOT NULL created_at`
+- `users_email_check`: `CHECK ((((email)::text = lower(btrim((email)::text))) AND ((email)::text ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'::text)))`
+- `users_email_not_null`: `NOT NULL email`
 - `users_id_not_null`: `NOT NULL id`
+- `users_lastname_check`: `CHECK ((((lastname)::text = btrim((lastname)::text)) AND ((char_length((lastname)::text) >= 1) AND (char_length((lastname)::text) <= 100)) AND ((lastname)::text !~ '[[:cntrl:][:digit:]]'::text)))`
+- `users_lastname_not_null`: `NOT NULL lastname`
+- `users_name_check`: `CHECK ((((name)::text = btrim((name)::text)) AND ((char_length((name)::text) >= 1) AND (char_length((name)::text) <= 100)) AND ((name)::text !~ '[[:cntrl:][:digit:]]'::text)))`
+- `users_name_not_null`: `NOT NULL name`
 - `users_pkey`: `PRIMARY KEY (id)`
 - `users_role_code_fkey`: `FOREIGN KEY (role_code) REFERENCES roles(code)`
 - `users_role_code_not_null`: `NOT NULL role_code`
 - `users_timezone_not_null`: `NOT NULL timezone`
 - `users_updated_at_not_null`: `NOT NULL updated_at`
-- `users_username_check`: `CHECK ((((username)::text = btrim((username)::text)) AND ((char_length((username)::text) >= 1) AND (char_length((username)::text) <= 64))))`
-- `users_username_not_null`: `NOT NULL username`
 
 Indexes (including PK/unique enforcement):
 
+- `users_email_ci_key`: `CREATE UNIQUE INDEX users_email_ci_key ON public.users USING btree (lower((email)::text))`
 - `users_pkey`: `CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)`
-- `users_username_ci_key`: `CREATE UNIQUE INDEX users_username_ci_key ON public.users USING btree (lower((username)::text))`
 

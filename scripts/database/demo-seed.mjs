@@ -7,7 +7,7 @@ export async function seedDemo(c, password) {
     throw new Error('DEMO_PASSWORD must contain at least 16 characters');
   return transaction(c, async () => {
     await c.query("SELECT pg_advisory_xact_lock(hashtext('online-tutor-demo-v1'))");
-    const prior = await c.query("SELECT id FROM public.users WHERE username='demo.tutor'");
+    const prior = await c.query("SELECT id FROM public.users WHERE email='demo.tutor@example.test'");
     if (prior.rowCount) return { existing: true };
     const insert = async (table, values) => {
       const columns = Object.keys(values),
@@ -21,13 +21,13 @@ export async function seedDemo(c, password) {
     };
     const tutor = await insert('public.users', {
       role_code: 'TUTOR',
-      username: 'demo.tutor',
-      display_name: 'Demo Tutor',
+      email: 'demo.tutor@example.test',
+      name: 'Demo', lastname: 'Tutor',
     });
     const student = await insert('public.users', {
       role_code: 'STUDENT',
-      username: 'demo.student',
-      display_name: 'Demo Student',
+      email: 'demo.student@example.test',
+      name: 'Demo', lastname: 'Student',
     });
     const hash = await argon2.hash(password, { type: argon2.argon2id });
     for (const u of [tutor, student])

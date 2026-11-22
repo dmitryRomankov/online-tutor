@@ -125,21 +125,39 @@ try {
     migrate();
     migrate();
   });
+  if (process.argv.includes('--refresh-docs'))
+    command(process.execPath, ['scripts/database/docs.mjs'], { env: { ...process.env, MIGRATION_DATABASE_URL: migrationUrl } });
   migrator = await connect(migrationUrl);
   app = await connect(urlFor('tutor_app', passwords.tutor_app));
   reporter = await connect(urlFor('tutor_reporter', passwords.tutor_reporter));
+  await check('session infrastructure remains backend-only', async () => {
+    for (const table of ['auth_sessions', 'auth_rate_limits']) {
+      await assert.rejects(reporter.query(`SELECT * FROM private.${table}`), error => error.code === '42501');
+      await reject(`ALTER TABLE private.${table} ADD COLUMN forbidden text`, [], ['42501']);
+    }
+  });
+  await check('identity constraints and runtime profile permissions', async () => {
+    const insert = "INSERT INTO users(role_code,email,name,lastname) VALUES('STUDENT',$1,$2,$3)";
+    await reject(insert, ['bad', 'Alex', 'Rivera']);
+    await reject(insert, ['Mixed@Example.test', 'Alex', 'Rivera']);
+    await reject(insert, ['name@example.test', ' ', 'Rivera']);
+    await reject(insert, ['name@example.test', 'Alex', '7']);
+    await reject(insert, ['name@example.test', 'x'.repeat(101), 'Rivera'], ['22001']);
+    await reject(insert, ['retired-test@retired.invalid', 'Alex', 'Rivera']);
+    await assert.rejects(app.query("UPDATE users SET email='other@example.test'"), error => error.code === '42501');
+  });
   await check('reference seed is replayable', async () => {
     await seedReference(migrator);
     await seedReference(migrator);
     assert.equal((await app.query('SELECT count(*)::int AS n FROM task_types')).rows[0].n, 10);
   });
-  await check('all 35 tables have primary keys', async () => {
+  await check('all 37 tables have primary keys', async () => {
     const {
       rows: [r],
     } = await dbAdmin.query(
       "SELECT count(*)::int AS n FROM pg_tables WHERE schemaname IN ('public','private') AND tablename<>'_prisma_migrations'"
     );
-    assert.equal(r.n, 35);
+    assert.equal(r.n, 37);
     const missing = await dbAdmin.query(
       "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','private') AND c.relkind='r' AND NOT EXISTS(SELECT 1 FROM pg_constraint k WHERE k.conrelid=c.oid AND k.contype='p')"
     );
@@ -204,9 +222,9 @@ try {
     ]);
     assert.equal(p.answered_percent, '60.00');
   });
-  await check('usernames are case-insensitively unique and roles are fixed', async () => {
+  await check('emails are unique and roles are fixed', async () => {
     await reject(
-      "INSERT INTO users(role_code,username) VALUES('STUDENT','DEMO.TUTOR')",
+      "INSERT INTO users(role_code,email,name,lastname) VALUES('STUDENT','demo.tutor@example.test','Demo','Tutor')",
       [],
       ['23505']
     );
@@ -647,8 +665,9 @@ try {
       rows: [u],
     } = await app.query('SELECT * FROM users WHERE id=$1', [fixture.student]);
     assert.equal(u.auth_epoch, 1);
-    assert.equal(u.display_name, null);
-    assert.equal(u.username, `retired-${fixture.student}`);
+    assert.equal(u.name, 'Retired');
+    assert.equal(u.lastname, 'Account');
+    assert.equal(u.email, `retired-${fixture.student}@retired.invalid`);
     assert(u.retired_at);
     assert.equal(
       (
@@ -662,7 +681,8 @@ try {
       fixture.student,
       '$argon2id$invalid',
     ]);
-    await reject("UPDATE users SET username='restored' WHERE id=$1", [fixture.student]);
+    await reject("UPDATE users SET timezone='Europe/Warsaw' WHERE id=$1", [fixture.student]);
+    await assert.rejects(app.query("UPDATE users SET name='Restored' WHERE id=$1", [fixture.student]), error => error.code === '42501');
   });
   await check('tutor retirement revokes outstanding invitations', async () => {
     const invitation = (
@@ -677,6 +697,17 @@ try {
         .rows[0].revoked_at
     );
   });
+  if (process.argv.includes('--auth')) {
+    await check('US01/US02 HTTP and WebSocket contracts against isolated PostgreSQL', async () => {
+      command(process.execPath, [
+        '--experimental-vm-modules', join(root, 'node_modules/jest/bin/jest.js'),
+        '--runInBand', '--testPathPatterns', 'auth.e2e-spec.ts|session-storage.e2e-spec.ts',
+      ], {
+        cwd: join(root, 'api'),
+        env: { ...process.env, AUTH_TEST_DATABASE_URL: urlFor('tutor_app', passwords.tutor_app) },
+      });
+    });
+  }
   console.log(`Passed ${passed} database checks on PostgreSQL 18.`);
   await dbAdmin.end();
   dbAdmin = null;

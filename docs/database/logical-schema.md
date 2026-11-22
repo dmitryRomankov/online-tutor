@@ -1,9 +1,19 @@
 # Logical database schema
 
-All 35 relations and every foreign key are shown below. `o|` marks an optional parent; each parent can have zero or many dependent rows unless the key/unique constraints listed in the dictionary limit this to one. Composite foreign keys are labelled with all participating columns.
+All 37 relations and every foreign key are shown below. `o|` marks an optional parent; each parent can have zero or many dependent rows unless the key/unique constraints listed in the dictionary limit this to one. Composite foreign keys are labelled with all participating columns.
 
 ```mermaid
 erDiagram
+  private_auth_rate_limits {
+    varchar key_hash
+    int4 attempts
+    timestamptz expires_at
+  }
+  private_auth_sessions {
+    varchar sid
+    json sess
+    timestamptz expire
+  }
   private_task_choice_keys {
     uuid input_id
     uuid choice_id
@@ -227,13 +237,14 @@ erDiagram
   public_users {
     uuid id
     text role_code
-    varchar username
-    varchar display_name
     text timezone
     int4 auth_epoch
     timestamptz retired_at
     timestamptz created_at
     timestamptz updated_at
+    varchar email
+    varchar name
+    varchar lastname
   }
   public_task_input_choices ||--o{ private_task_choice_keys : "input_id, choice_id"
   public_task_inputs ||--o{ private_task_text_keys : "input_id"

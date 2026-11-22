@@ -2,6 +2,9 @@ import { writeFile } from 'node:fs/promises';
 import { connect, root } from './lib.mjs';
 const c = await connect(process.env.MIGRATION_DATABASE_URL);
 const purposes = {
+  auth_sessions: 'Private server-side login sessions referenced by HttpOnly cookies; unrelated to lesson sessions.',
+  auth_rate_limits: 'Shared fixed-window authentication limits using HMAC-hashed IP keys; expires after one minute.',
+
   roles: 'Fixed application profile types; these are separate from PostgreSQL login roles.',
   task_types: 'Ten supported task formats and their automatic/manual checking mode.',
   input_kinds: 'Renderer and answer representation for an individual input.',
@@ -43,12 +46,18 @@ const purposes = {
     'Creation-only lesson notification; unread status disappears after reading.',
 };
 const meanings = {
+  sid: 'Cryptographically random login session ID, referenced by a signed HttpOnly cookie.',
+  sess: 'Server-side session JSON: cookie metadata and user ID/auth epoch/absolute expiry; no password or answer keys.',
+  expire: 'Indexed absolute login session expiry; expired sessions are rejected before cleanup.',
+  key_hash: 'HMAC-SHA256 of client IP using shared session secret; no raw IP address.',
+  attempts: 'Authentication attempts in current fixed window; capped at 21, with attempts 1–20 allowed.',
   id: 'Stable UUID identifier.',
   code: 'Stable lookup code used by foreign keys.',
   label: 'Human-readable label.',
   role_code: 'Fixed tutor/student profile type.',
-  username: 'Login name; case-insensitively unique.',
-  display_name: 'Optional profile name; cleared on retirement.',
+  email: 'Trimmed lowercase login email; unique without case distinctions.',
+  name: 'Required given name, 1–100 characters; anonymized on retirement.',
+  lastname: 'Required family name, 1–100 characters; anonymized on retirement.',
   timezone: 'Valid PostgreSQL/IANA timezone name.',
   auth_epoch: 'Authentication generation; incremented on retirement.',
   retired_at: 'Retirement time; NULL means the account is active.',
@@ -56,7 +65,7 @@ const meanings = {
   linked_at: 'Time the tutor/student relationship started.',
   ended_at: 'Actual session end or relationship closure time.',
   token_hash: 'SHA-256 hex digest of invitation token; never the raw token.',
-  expires_at: 'Invitation expiry time.',
+  expires_at: 'Invitation or authentication rate-window expiry time, depending on the table.',
   revoked_at: 'Invitation revocation time.',
   accepted_at: 'Invitation acceptance time.',
   object_key: 'Private storage object identifier; not a public/signed URL.',
@@ -120,7 +129,7 @@ try {
   let doc =
     '# Data dictionary\n\nGenerated from PostgreSQL 18 by `npm run db:docs`. SQL migrations remain authoritative. UUID keys are stable; timestamps are `timestamptz`; all foreign keys use NO ACTION on update/delete to protect history. Nullable columns are explicitly marked.\n\n';
   let diagram =
-    '# Logical database schema\n\nAll 35 relations and every foreign key are shown below. `o|` marks an optional parent; each parent can have zero or many dependent rows unless the key/unique constraints listed in the dictionary limit this to one. Composite foreign keys are labelled with all participating columns.\n\n```mermaid\nerDiagram\n';
+    '# Logical database schema\n\nAll 37 relations and every foreign key are shown below. `o|` marks an optional parent; each parent can have zero or many dependent rows unless the key/unique constraints listed in the dictionary limit this to one. Composite foreign keys are labelled with all participating columns.\n\n```mermaid\nerDiagram\n';
   for (const t of tables) {
     const key = `${t.schemaname}.${t.tablename}`;
     doc += `## ${key}\n\n${purposes[t.tablename]}\n\n| Column | PostgreSQL type | Nullable | Default | Meaning |\n| --- | --- | --- | --- | --- |\n`;

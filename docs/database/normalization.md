@@ -31,3 +31,7 @@ Foreign keys connect relations; conditional uniqueness constrains active subsets
 Progress, correctness, scheduled end, homework state, unread lists, and report counts are views, not stored aggregates. No duplicate attendance or lesson-history table is created. Attendance/response-time analytics that need connection events are not implemented by this schema; they require explicit future event collection rather than inferring attendance from a scheduled lesson.
 
 Immutable published versions and submitted attempts are deliberate historical facts. They preserve which content and answer existed at that point; they are not mutable duplicates of a current record. Generated identifiers and internal `write_transaction` metadata support persistence without introducing user-visible duplicated business facts.
+
+## Authentication infrastructure
+
+The 35 teaching/account domain tables retain the normalization rules above. Two private infrastructure tables support authentication. In `auth_rate_limits`, `key_hash` determines `attempts` and `expires_at`. In `auth_sessions`, `sid` identifies an opaque `express-session` payload and its indexed expiry. JSON here is the middleware serialization boundary, not a task definition or substitute for normalized domain data. It contains cookie metadata and a user ID/authentication generation/absolute expiry, never copied names, emails, passwords or lesson content.

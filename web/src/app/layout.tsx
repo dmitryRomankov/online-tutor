@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import { Providers } from './providers';
+import '@fontsource/ibm-plex-sans/latin-400.css';
+import '@fontsource/ibm-plex-sans/latin-500.css';
+import '@fontsource/ibm-plex-sans/latin-600.css';
 import './globals.css';
 
 export const metadata: Metadata = {

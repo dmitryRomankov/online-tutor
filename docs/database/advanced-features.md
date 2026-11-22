@@ -6,7 +6,7 @@ Primary and unique keys protect identity and ordering. Additional indexes suppor
 
 | Access path | Index family / reason |
 | --- | --- |
-| Login lookup | `users_username_ci_key`: unique `lower(username)` for case-insensitive login. |
+| Login lookup | `users_email_ci_key`: unique `lower(email)` for case-insensitive login. |
 | One active tutor per student | `tutor_students_one_active_tutor`: partial unique index where `ended_at IS NULL`; historical links remain many-to-one. |
 | Tutor libraries | `tasks_owner_library_idx`, `lessons_owner_library_idx`: owner, archive marker and creation ordering. |
 | Dashboard schedule/history | `sessions_schedule_idx`, `sessions_history_idx`: link plus chronological start/end, with a terminal-state partial index. |
@@ -72,3 +72,5 @@ SELECT * FROM reporting.session_counts;
 ```
 
 SQL functions satisfy the advanced procedural requirement; no redundant stored procedure is added merely to increase the object count.
+
+Authentication infrastructure adds indexed expiry columns on `private.auth_sessions` and `private.auth_rate_limits`. PostgreSQL atomic upsert serializes counter updates for a hashed client key, enforcing the shared 20-attempt window across API instances. Runtime cleanup checks expiry again during deletion to retain rows refreshed concurrently.

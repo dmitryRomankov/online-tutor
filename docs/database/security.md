@@ -17,14 +17,20 @@ Functions with `SECURITY DEFINER` are restricted to `start_session`, `end_sessio
 
 ## Account retirement
 
-`SELECT public.retire_account($1)` runs transactionally and can be called again safely. It rejects an account involved in an active lesson, deletes its credential hash, clears its display name, replaces its username with `retired-<uuid>`, resets timezone, increments `auth_epoch` once, closes active tutor links and revokes its unused invitations. Primary/foreign keys and lesson/homework history remain. Triggers prevent new credentials or profile restoration for a retired account.
+`SELECT public.retire_account($1)` runs transactionally and can be called again safely. It rejects an account involved in an active lesson, deletes its credential hash, replaces names with `Retired Account` and email with `retired-<uuid>@retired.invalid`, resets timezone, increments `auth_epoch` once, closes active tutor links and revokes its unused invitations. Primary/foreign keys and lesson/homework history remain. Triggers prevent new credentials or profile restoration for a retired account.
 
 This is direct-identity removal and historical **pseudonymization**, not a guarantee of irreversible anonymity. A UUID remains, and names may exist in chat, answers, feedback, filenames, backups or external services. Production retention and erasure policies require a separate decision. No claim of GDPR compliance or complete erasure is made.
 
-When authentication is implemented, it must reject `retired_at`, validate `auth_epoch`, invalidate Redis/browser sessions and check socket admission/events. A database routine alone cannot terminate an already authenticated socket. There is no working registration/login/retirement API in this database deliverable.
+The US01/US02 API rejects retired accounts and validates `auth_epoch` on protected HTTP requests and classroom admission/events. Logout revokes the current PostgreSQL session. Idle sockets recheck authentication every five seconds, so account retirement also disconnects idle clients. The retirement routine remains an operator/database operation; it has no public HTTP endpoint.
 
 ## Masked reporting
 
 `reporting.account_activity` exposes `account-<md5(uuid)>`, role, retired flag and aggregate counts. The hash is only a stable pseudonymous label, not a cryptographic anonymity guarantee or password hashing mechanism. Reporting excludes raw IDs, login names, profile names, hashes, invitations, content/free text and storage object keys. Reporter access is tested through a real separate connection.
 
 Only synthetic accounts are seeded. Demo passwords are supplied through an environment variable and hashed with Argon2id; raw passwords/tokens are never committed. Outside local testing, require provider TLS, manage secrets separately, restrict network access and review backup/retention settings before using real personal data.
+
+Identity changes use migration `202611200001_email_identity`. It refuses populated legacy installations rather than guessing names/email. The current Neon installation had zero accounts at migration preparation. Runtime cannot update names/email; profile editing is out of scope.
+
+## Login session storage
+
+`private.auth_sessions` and `private.auth_rate_limits` are owned by `tutor_owner`. Only `tutor_app` receives CRUD permissions; reporting cannot read session payloads or rate-limit keys. Runtime never creates these tables. Schema changes use the migration role. These infrastructure tables are separate from lesson `public.sessions`, preserve stable application history and contain no password hashes. Browser cookies contain signed session IDs only. Rate-limit keys are HMAC hashes of IP addresses. Expiry indexes support bounded request-driven cleanup and `npm run db:cleanup:auth` for scheduled maintenance.

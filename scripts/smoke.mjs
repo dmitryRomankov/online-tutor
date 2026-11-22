@@ -82,7 +82,7 @@ try {
   assert.ok(spec.paths['/api/health']);
   const page = await (await fetch('http://127.0.0.1:3000')).text();
   assert.ok(page.includes('Online lessons'));
-  await probeSocket('http://localhost:3000', true);
+  await probeSocket('http://localhost:3000', false);
   await probeSocket('https://untrusted.example', false);
   console.log('HTTP, OpenAPI, frontend and Socket.IO smoke checks passed.');
 
