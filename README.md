@@ -23,17 +23,17 @@ The frontend displays API liveness without requiring PostgreSQL. The `/classroom
 
 ## Stack and installed libraries
 
-| Area | Setup |
-| --- | --- |
-| Frontend | Next.js App Router, React, TypeScript, native Next.js/Turbopack tooling |
-| API state / realtime | TanStack Query with fetch, Socket.IO client |
-| Backend | NestJS with Express, config, validation, Helmet, REST and Swagger |
-| Database | PostgreSQL, Prisma CLI/client, PostgreSQL driver adapter and `pg` |
-| Authentication | Fixed-role registration, login/logout, current user, Argon2id and PostgreSQL-backed cookie sessions |
-| Media | LiveKit browser SDK, React components/styles and server SDK; room/token features come later |
-| Storage | Azure Blob Storage SDK; upload features come later |
-| Testing | Jest, React Testing Library, Nest testing utilities, Supertest and Cypress |
-| Local infrastructure | Docker Compose for PostgreSQL; separate FE/BE Dockerfiles |
+| Area                 | Setup                                                                                               |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| Frontend             | Next.js App Router, React, TypeScript, native Next.js/Turbopack tooling                             |
+| API state / realtime | TanStack Query with fetch, Socket.IO client                                                         |
+| Backend              | NestJS with Express, config, validation, Helmet, REST and Swagger                                   |
+| Database             | PostgreSQL, Prisma CLI/client, PostgreSQL driver adapter and `pg`                                   |
+| Authentication       | Fixed-role registration, login/logout, current user, Argon2id and PostgreSQL-backed cookie sessions |
+| Media                | LiveKit browser SDK, React components/styles and server SDK; room/token features come later         |
+| Storage              | Azure Blob Storage SDK; upload features come later                                                  |
+| Testing              | Jest, React Testing Library, Nest testing utilities, Supertest and Cypress                          |
+| Local infrastructure | Docker Compose for PostgreSQL; separate FE/BE Dockerfiles                                           |
 
 Direct versions are pinned in the three package manifests; `package-lock.json` locks transitive dependencies. Versions were resolved from npm on 28 October 2026. Compatibility exceptions: TypeScript 6.0.3 (NestJS Swagger and typescript-eslint do not support TypeScript 7 yet), ESLint 9.39.5 (Next's React/import/accessibility lint plugins do not support ESLint 10), and Prisma 7.10.1 (the CLI `latest` tag points to an 8.0 release candidate). Node type definitions follow the selected Node 24 runtime. No Vite is needed with Next.js.
 
@@ -59,12 +59,12 @@ One TanStack Query cache owns the current frontend identity. It rechecks on focu
 
 Set `DATABASE_URL` to the restricted runtime connection and `SESSION_SECRET` to a random value of at least 32 characters in `api/.env`. Configure the same settings in Vercel for deployed authentication. Generate a signing secret with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` and store it privately.
 
-| Endpoint | Input | Successful result |
-| --- | --- | --- |
-| `POST /api/auth/register` | `name`, `lastname`, `email`, `password`, `role` (`TUTOR` or `STUDENT`) | 201, account created and signed in |
-| `POST /api/auth/login` | `email`, `password` | 200, new authenticated session |
-| `POST /api/auth/logout` | Current cookie; empty body | 204, session revoked and cookie cleared |
-| `GET /api/auth/me` | Current cookie | 200, current user |
+| Endpoint                  | Input                                                                  | Successful result                       |
+| ------------------------- | ---------------------------------------------------------------------- | --------------------------------------- |
+| `POST /api/auth/register` | `name`, `lastname`, `email`, `password`, `role` (`TUTOR` or `STUDENT`) | 201, account created and signed in      |
+| `POST /api/auth/login`    | `email`, `password`                                                    | 200, new authenticated session          |
+| `POST /api/auth/logout`   | Current cookie; empty body                                             | 204, session revoked and cookie cleared |
+| `GET /api/auth/me`        | Current cookie                                                         | 200, current user                       |
 
 Registration, login and current-user responses contain only `{"user":{"id":"…","name":"Alex","lastname":"Rivera","email":"alex@example.test","role":"STUDENT"}}`. Names are required, trimmed, 1–100 Unicode characters and allow letters, combining marks, spaces, hyphens and apostrophes. Email is trimmed, stored lowercase, limited to 254 characters and uniquely indexed without case distinctions. The `retired.invalid` domain is reserved for anonymized accounts. Email verification and profile editing are separate stories. New passwords contain at least 5 characters, with no character-type or password-length upper restriction. Existing shorter passwords remain usable at login. Role is fixed. Registration signs in immediately.
 
