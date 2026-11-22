@@ -4,7 +4,8 @@
     "api": {
       "root": "api",
       "framework": "node",
-      "entrypoint": "src/vercel.ts",
+      "entrypoint": "vercel.mjs",
+      "buildCommand": "npm run build:vercel",
       "devCommand": "npm run dev"
     },
     "web": {
