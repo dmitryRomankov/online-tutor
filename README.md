@@ -1,7 +1,6 @@
 # Lesson Workspace
 
-A diploma project for one-to-one language lessons. The `online-tutor` repository contains a Next.js client in `web/`, a separate NestJS modular backend in `api/`, and shared scripts and configuration at the root. Business analysis and diploma documents remain in the parent `Diploma/BA/` and `Diploma/Docs/` folders, outside this repository.
-
+A diploma project for one-to-one language lessons. The `online-tutor` repository contains a Next.js client in `web/`, a separate NestJS modular backend in `api/`, and shared scripts and configuration at the root.
 ## Run locally
 
 Use Node **24.19.0** (`nvm install` then `nvm use`, if you use nvm) and npm 10 or newer. The project deliberately requires Node 24 rather than the machine's older Node 20 default.
