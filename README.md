@@ -27,6 +27,10 @@ cp api/.env.example api/.env
 npm run dev
 ```
 
+GitHub Actions runs checks and browser smoke coverage on pushes and pull requests once this folder is published to a GitHub repository. Deployment is not configured; Azure resources, identities and secrets are needed first.
+
+CI runs the Jest suites with coverage. On the GitHub Actions run page, download `frontend-coverage` or `backend-coverage` under **Artifacts**. Each archive includes `lcov.info` and an HTML report at `lcov-report/index.html`. Cypress and PostgreSQL checks run separately from these reports.
+
 - Frontend: http://localhost:3000
 - API liveness: http://localhost:3001/api/health
 - Swagger UI: http://localhost:3001/api/docs
@@ -69,13 +73,7 @@ Run `npm run test:auth:integration` for the HTTP/WebSocket contracts against a d
 
 After building, run either app in production mode with `npm run start --workspace @diploma/web` or `npm run start --workspace @diploma/api`. The web build prepares a standalone server with its public/static assets, matching the frontend container.
 
-## Tests and reporting
-
 Keep ports 3000/3001 free for smoke/E2E tests. Cypress's browser binary is stored in the project's ignored `.cache/Cypress` directory during initial installation. For a fresh install, set `CYPRESS_CACHE_FOLDER="$PWD/.cache/Cypress" npm ci`; if necessary, run `CYPRESS_CACHE_FOLDER="$PWD/.cache/Cypress" npx cypress install`. The npm package is separate from its downloaded browser binary.
-
-GitHub Actions runs checks and browser smoke coverage on pushes and pull requests once this folder is published to a GitHub repository. Deployment is not configured; Azure resources, identities and secrets are needed first.
-
-CI runs the Jest suites with coverage. On the GitHub Actions run page, download `frontend-coverage` or `backend-coverage` under **Artifacts**. Each archive includes `lcov.info` and an HTML report at `lcov-report/index.html`. Cypress and PostgreSQL checks run separately from these reports.
 
 ## Containers and deployment
 
