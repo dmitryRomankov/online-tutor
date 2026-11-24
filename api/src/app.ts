@@ -8,13 +8,13 @@ import { AppModule } from './app.module.js';
 import { SocketAdapter } from './realtime/socket.adapter.js';
 import { SessionRuntime } from './auth/http/session-runtime.js';
 
-export async function createApp() {
+export async function createApp(swaggerUiPath?: string) {
   const app = await NestFactory.create(AppModule);
-  configureApp(app);
+  configureApp(app, swaggerUiPath);
   return app;
 }
 
-export function configureApp(app: INestApplication): void {
+export function configureApp(app: INestApplication, swaggerUiPath?: string): void {
   const config = app.get(ConfigService);
   const clientOrigin = config.getOrThrow<string>('CLIENT_ORIGIN');
   const sessions = app.get(SessionRuntime);
@@ -41,5 +41,8 @@ export function configureApp(app: INestApplication): void {
       .addCookieAuth('online_tutor.sid')
       .build()
   );
-  SwaggerModule.setup('api/docs', app, document, { jsonDocumentUrl: 'api/docs-json' });
+  SwaggerModule.setup('api/docs', app, document, {
+    jsonDocumentUrl: 'api/docs-json',
+    customSwaggerUiPath: swaggerUiPath,
+  });
 }
