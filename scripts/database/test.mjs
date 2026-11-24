@@ -126,13 +126,18 @@ try {
     migrate();
   });
   if (process.argv.includes('--refresh-docs'))
-    command(process.execPath, ['scripts/database/docs.mjs'], { env: { ...process.env, MIGRATION_DATABASE_URL: migrationUrl } });
+    command(process.execPath, ['scripts/database/docs.mjs'], {
+      env: { ...process.env, MIGRATION_DATABASE_URL: migrationUrl },
+    });
   migrator = await connect(migrationUrl);
   app = await connect(urlFor('tutor_app', passwords.tutor_app));
   reporter = await connect(urlFor('tutor_reporter', passwords.tutor_reporter));
   await check('session infrastructure remains backend-only', async () => {
     for (const table of ['auth_sessions', 'auth_rate_limits']) {
-      await assert.rejects(reporter.query(`SELECT * FROM private.${table}`), error => error.code === '42501');
+      await assert.rejects(
+        reporter.query(`SELECT * FROM private.${table}`),
+        (error) => error.code === '42501'
+      );
       await reject(`ALTER TABLE private.${table} ADD COLUMN forbidden text`, [], ['42501']);
     }
   });
@@ -144,7 +149,10 @@ try {
     await reject(insert, ['name@example.test', 'Alex', '7']);
     await reject(insert, ['name@example.test', 'x'.repeat(101), 'Rivera'], ['22001']);
     await reject(insert, ['retired-test@retired.invalid', 'Alex', 'Rivera']);
-    await assert.rejects(app.query("UPDATE users SET email='other@example.test'"), error => error.code === '42501');
+    await assert.rejects(
+      app.query("UPDATE users SET email='other@example.test'"),
+      (error) => error.code === '42501'
+    );
   });
   await check('reference seed is replayable', async () => {
     await seedReference(migrator);
@@ -682,7 +690,10 @@ try {
       '$argon2id$invalid',
     ]);
     await reject("UPDATE users SET timezone='Europe/Warsaw' WHERE id=$1", [fixture.student]);
-    await assert.rejects(app.query("UPDATE users SET name='Restored' WHERE id=$1", [fixture.student]), error => error.code === '42501');
+    await assert.rejects(
+      app.query("UPDATE users SET name='Restored' WHERE id=$1", [fixture.student]),
+      (error) => error.code === '42501'
+    );
   });
   await check('tutor retirement revokes outstanding invitations', async () => {
     const invitation = (
@@ -698,15 +709,28 @@ try {
     );
   });
   if (process.argv.includes('--auth')) {
-    await check('US01/US02 HTTP and WebSocket contracts against isolated PostgreSQL', async () => {
-      command(process.execPath, [
-        '--experimental-vm-modules', join(root, 'node_modules/jest/bin/jest.js'),
-        '--runInBand', '--testPathPatterns', 'auth.e2e-spec.ts|session-storage.e2e-spec.ts',
-      ], {
-        cwd: join(root, 'api'),
-        env: { ...process.env, AUTH_TEST_DATABASE_URL: urlFor('tutor_app', passwords.tutor_app) },
-      });
-    });
+    await check(
+      'US01–US03 HTTP, WebSocket and invitation contracts against isolated PostgreSQL',
+      async () => {
+        command(
+          process.execPath,
+          [
+            '--experimental-vm-modules',
+            join(root, 'node_modules/jest/bin/jest.js'),
+            '--runInBand',
+            '--testPathPatterns',
+            'auth.e2e-spec.ts|session-storage.e2e-spec.ts|connections.*e2e-spec.ts',
+          ],
+          {
+            cwd: join(root, 'api'),
+            env: {
+              ...process.env,
+              AUTH_TEST_DATABASE_URL: urlFor('tutor_app', passwords.tutor_app),
+            },
+          }
+        );
+      }
+    );
   }
   console.log(`Passed ${passed} database checks on PostgreSQL 18.`);
   await dbAdmin.end();

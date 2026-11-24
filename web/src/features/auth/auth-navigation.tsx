@@ -1,57 +1,67 @@
+import { authHref } from './invitation-links';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import styles from './auth.module.css';
 
-export function AuthHeader() {
+export function AuthHeader({ invitation = null }: { invitation?: string | null }) {
   return (
-    <header className="auth-header w-130 max-w-full mb-3 max-[640.01px]:w-full max-[640.01px]:min-h-11 max-[640.01px]:mb-4">
-      <Link
-        href="/"
-        className="auth-brand text-foreground text-[16px] no-underline tracking-[0] [&:focus-visible]:[outline:2px_solid_var(--ring)] [&:focus-visible]:[outline-offset:4px] [&:focus-visible]:rounded-[4px]"
-      >
+    <header className="auth-header w-130 max-w-full mb-3 phone:w-full phone:min-h-11 phone:mb-4">
+      <Link href="/" className={styles.brand}>
         <ArrowLeft className="inline-block mr-2" />
         Back to home page
       </Link>
-      <div className="auth-mobile-menu hidden max-[640.01px]:block max-[640.01px]:[&_[data-slot='button']]:min-w-[80px] max-[640.01px]:[&_[data-slot='button']]:min-h-11">
+      <div className="auth-mobile-menu hidden phone:block">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">Menu</Button>
+            <Button variant="outline" className="min-h-11 min-w-20">
+              Menu
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem asChild>
-              <Link href="/sign-in">Sign in</Link>
+              <Link href={authHref('login', invitation)}>Sign in</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/register">Create account</Link>
+              <Link href={authHref('register', invitation)}>Create account</Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </header>
-
   );
 }
 
-export function AuthSwitch({ registering }: { registering: boolean }) {
+export function AuthSwitch({
+  registering,
+  invitation = null,
+}: {
+  registering: boolean;
+  invitation?: string | null;
+}) {
   return (
     <>
-      <p className="auth-switch [margin:20px_0_0] text-[14px] text-muted-foreground [&_a]:text-foreground [&_a]:underline max-[640.01px]:hidden">
+      <p className="auth-switch [margin:20px_0_0] text-[14px] text-muted-foreground [&_a]:text-foreground [&_a]:underline phone:hidden">
         {registering ? 'Already registered?' : 'New here?'}{' '}
-        <Link href={registering ? '/sign-in' : '/register'}>
+        <Link href={authHref(registering ? 'login' : 'register', invitation)}>
           {registering ? 'Sign in' : 'Create an account'}
         </Link>
       </p>
       <Button
-        className="auth-switch-mobile hidden text-foreground no-underline max-[640.01px]:w-full max-[640.01px]:min-h-11 max-[640.01px]:flex max-[640.01px]:mt-4"
+        className="auth-switch-mobile hidden text-foreground no-underline phone:w-full phone:min-h-11 phone:flex phone:mt-4"
         variant="outline"
         asChild
       >
-        <Link href={registering ? '/sign-in' : '/register'}>
+        <Link href={authHref(registering ? 'login' : 'register', invitation)}>
           {registering ? 'Sign in' : 'Create account'}
         </Link>
       </Button>
-
     </>
   );
 }

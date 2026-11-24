@@ -1,6 +1,11 @@
 import { Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import type { useAuthForm } from './useAuthForm';
+
+const fieldErrorClass = 'text-[13px] leading-[1.5]';
+const phoneInputClass = 'phone:min-h-11 phone:text-[16px]';
 
 export function AuthFields({
   registering,
@@ -8,18 +13,25 @@ export function AuthFields({
   errors,
   visible,
   togglePassword,
-}: Pick<ReturnType<typeof useAuthForm>, 'registering' | 'field' | 'errors' | 'visible' | 'togglePassword'>) {
+}: Pick<
+  ReturnType<typeof useAuthForm>,
+  'registering' | 'field' | 'errors' | 'visible' | 'togglePassword'
+>) {
   return (
     <>
       {registering &&
         (['name', 'lastname'] as const).map((nameField) => (
-          <div
-            className="form-field flex flex-col gap-2 min-w-0 [&_label]:text-[14px] [&_label]:font-medium [&_label]:leading-[20px] name-field order-[1]"
+          <Field
+            className="order-1 min-w-0 gap-2"
+            data-invalid={Boolean(errors[nameField])}
             key={nameField}
           >
-            <label htmlFor={nameField}>{nameField === 'name' ? 'Name' : 'Last name'}</label>
+            <FieldLabel className="leading-5 text-foreground" htmlFor={nameField}>
+              {nameField === 'name' ? 'Name' : 'Last name'}
+            </FieldLabel>
             <Input
               id={nameField}
+              className={phoneInputClass}
               {...field(nameField)}
               autoComplete={nameField === 'name' ? 'given-name' : 'family-name'}
               placeholder={nameField === 'name' ? 'Enter your name' : 'Enter your last name'}
@@ -29,20 +41,21 @@ export function AuthFields({
               aria-describedby={errors[nameField] ? `${nameField}-error` : undefined}
             />
             {errors[nameField] && (
-              <p
+              <FieldError
                 id={`${nameField}-error`}
-                className="field-error m-0 text-[13px] leading-[1.5] text-destructive"
-                role="alert"
-              >
-                {errors[nameField]?.message}
-              </p>
+                className={fieldErrorClass}
+                errors={[errors[nameField]]}
+              />
             )}
-          </div>
+          </Field>
         ))}
-      <div className="form-field flex flex-col gap-2 min-w-0 [&_label]:text-[14px] [&_label]:font-medium [&_label]:leading-[20px] email-field order-[1]">
-        <label htmlFor="email">Email</label>
+      <Field className="order-1 min-w-0 gap-2" data-invalid={Boolean(errors.email)}>
+        <FieldLabel className="leading-5 text-foreground" htmlFor="email">
+          Email
+        </FieldLabel>
         <Input
           id="email"
+          className={phoneInputClass}
           {...field('email')}
           autoComplete="email"
           type="email"
@@ -55,20 +68,17 @@ export function AuthFields({
           aria-describedby={errors.email ? 'email-error' : undefined}
         />
         {errors.email && (
-          <p
-            id="email-error"
-            className="field-error m-0 text-[13px] leading-[1.5] text-destructive"
-            role="alert"
-          >
-            {errors.email?.message}
-          </p>
+          <FieldError id="email-error" className={fieldErrorClass} errors={[errors.email]} />
         )}
-      </div>
-      <div className="form-field flex flex-col gap-2 min-w-0 [&_label]:text-[14px] [&_label]:font-medium [&_label]:leading-[20px] password-field order-[2]">
-        <label htmlFor="password">Password</label>
-        <div className="password-input relative [&_input]:pr-12">
+      </Field>
+      <Field className="order-2 min-w-0 gap-2" data-invalid={Boolean(errors.password)}>
+        <FieldLabel className="leading-5 text-foreground" htmlFor="password">
+          Password
+        </FieldLabel>
+        <div className="relative">
           <Input
             id="password"
+            className={`${phoneInputClass} pr-12`}
             {...field('password')}
             type={visible ? 'text' : 'password'}
             autoComplete={registering ? 'new-password' : 'current-password'}
@@ -79,39 +89,38 @@ export function AuthFields({
               errors.password ? 'password-error' : registering ? 'password-help' : undefined
             }
           />
-          <button
+          <Button
             type="button"
-            className="password-toggle absolute [inset:0_0_0_auto] w-11 flex justify-center items-center text-muted-foreground rounded-[8px] cursor-pointer [&:hover]:text-foreground [&:focus-visible]:[outline:2px_solid_var(--ring)] [&:focus-visible]:[outline-offset:2px]"
+            variant="ghost"
+            size="icon"
+            className="absolute inset-y-0 right-0 h-auto w-11 cursor-pointer text-muted-foreground hover:bg-transparent hover:text-foreground focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&_svg]:size-[17px]"
             aria-label={visible ? 'Hide password' : 'Show password'}
             aria-pressed={visible}
             onClick={togglePassword}
           >
             {visible ? <EyeOff size={17} /> : <Eye size={17} />}
-          </button>
+          </Button>
         </div>
         {errors.password && (
-          <p
-            id="password-error"
-            className="field-error m-0 text-[13px] leading-[1.5] text-destructive"
-            role="alert"
-          >
-            {errors.password?.message}
-          </p>
+          <FieldError id="password-error" className={fieldErrorClass} errors={[errors.password]} />
         )}
         {registering && (
-          <p
+          <FieldDescription
             id="password-help"
             className="field-hint m-0 text-muted-foreground text-[12px] leading-[1.5]"
           >
             At least 5 characters.
-          </p>
+          </FieldDescription>
         )}
-      </div>
+      </Field>
       {registering && (
-        <div className="form-field flex flex-col gap-2 min-w-0 [&_label]:text-[14px] [&_label]:font-medium [&_label]:leading-[20px] confirmation-field order-[3]">
-          <label htmlFor="confirmation">Confirm password</label>
+        <Field className="order-3 min-w-0 gap-2" data-invalid={Boolean(errors.confirmation)}>
+          <FieldLabel className="leading-5 text-foreground" htmlFor="confirmation">
+            Confirm password
+          </FieldLabel>
           <Input
             id="confirmation"
+            className={phoneInputClass}
             {...field('confirmation')}
             type={visible ? 'text' : 'password'}
             autoComplete="new-password"
@@ -121,17 +130,14 @@ export function AuthFields({
             aria-describedby={errors.confirmation ? 'confirmation-error' : undefined}
           />
           {errors.confirmation && (
-            <p
+            <FieldError
               id="confirmation-error"
-              className="field-error m-0 text-[13px] leading-[1.5] text-destructive"
-              role="alert"
-            >
-              {errors.confirmation?.message}
-            </p>
+              className={fieldErrorClass}
+              errors={[errors.confirmation]}
+            />
           )}
-        </div>
+        </Field>
       )}
-
     </>
   );
 }

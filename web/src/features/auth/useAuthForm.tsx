@@ -11,6 +11,8 @@ import { authErrorMessage, AuthApiError, dashboardPath } from './api';
 import type { ProfileRole } from './api';
 import { useAuth } from './auth-provider';
 
+import { invitationDestination } from './invitation-links';
+
 type Field = keyof AuthFormValues;
 
 export function useAuthForm(mode: 'login' | 'register') {
@@ -18,6 +20,7 @@ export function useAuthForm(mode: 'login' | 'register') {
   const auth = useAuth();
   const router = useRouter();
   const parameters = useSearchParams();
+  const invitation = parameters.get('invitation');
   const controller = useRef<AbortController | null>(null);
   const {
     register: field,
@@ -36,7 +39,7 @@ export function useAuthForm(mode: 'login' | 'register') {
       email: '',
       password: '',
       confirmation: '',
-      role: 'TUTOR',
+      role: invitationDestination(invitation) ? 'STUDENT' : 'TUTOR',
     },
   });
   const role = useWatch({ control, name: 'role' });
@@ -64,8 +67,9 @@ export function useAuthForm(mode: 'login' | 'register') {
         : '';
 
   useEffect(() => {
-    if (auth.user && !auth.error) router.replace(dashboardPath(auth.user.role));
-  }, [auth.user, auth.error, router]);
+    if (auth.user && !auth.error)
+      router.replace(invitationDestination(invitation) ?? dashboardPath(auth.user.role));
+  }, [auth.user, auth.error, router, invitation]);
 
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -108,6 +112,7 @@ export function useAuthForm(mode: 'login' | 'register') {
 
   return {
     registering,
+    invitation,
     role,
     visible,
     pending,

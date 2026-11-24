@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
-import { ApiProperty, ApiTags, ApiCookieAuth, ApiResponse } from '@nestjs/swagger';
+import { ApiProperty, ApiOperation, ApiTags, ApiCookieAuth, ApiResponse } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsIn, IsString, Length, MinLength } from 'class-validator';
 import type { Request, Response } from 'express';
@@ -9,8 +9,37 @@ import type { AuthenticatedRequest } from './auth.guard.js';
 import { Public } from './public.js';
 import { SessionRuntime, SESSION_COOKIE } from './session-runtime.js';
 
+import {
+  apiError,
+  invalidSession,
+  rejectedOrigin,
+  storageUnavailable,
+} from '../../docs/error-response.js';
+
+const authUnavailable = {
+  code: 'unavailable',
+  message: 'Authentication is temporarily unavailable.',
+};
+const originError = apiError(403, 'Request origin is not allowed.', rejectedOrigin);
+const unavailable = apiError(
+  503,
+  'Authentication or session storage unavailable.',
+  authUnavailable,
+  storageUnavailable
+);
+const rateLimited = apiError(429, 'Authentication attempt limit exceeded.', {
+  message: 'Too many authentication attempts. Try again later.',
+});
+const validationError = { error: 'Bad Request', message: ['password must be a string'] };
+const sessionHeader = {
+  'Set-Cookie': {
+    description: 'Sets or clears the HttpOnly session cookie.',
+    schema: { type: 'string' },
+  },
+};
+
 class LoginBody {
-  @ApiProperty({ maxLength: 254 })
+  @ApiProperty({ minLength: 1, maxLength: 254, example: 'alex@example.test' })
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value
@@ -18,7 +47,7 @@ class LoginBody {
   @Length(1, 254)
   email!: string;
 
-  @ApiProperty({ writeOnly: true })
+  @ApiProperty({ writeOnly: true, minLength: 1, example: 'example-password' })
   @IsString()
   @MinLength(1)
   password!: string;
@@ -28,6 +57,8 @@ class RegisterBody {
   @ApiProperty({
     minLength: 1,
     maxLength: 254,
+    format: 'email',
+    example: 'alex@example.test',
     description: 'Valid email address; trimmed and lowercase; case-insensitive uniqueness.',
   })
   @IsEmail()
@@ -38,34 +69,44 @@ class RegisterBody {
   @Length(1, 254)
   email!: string;
 
-  @ApiProperty({ maxLength: 100 })
+  @ApiProperty({
+    minLength: 1,
+    maxLength: 100,
+    example: 'Alex',
+    description: 'Trimmed name with letters, spaces, hyphens or apostrophes.',
+  })
   @IsString()
   @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @Length(1, 100)
   name!: string;
 
-  @ApiProperty({ maxLength: 100 })
+  @ApiProperty({
+    minLength: 1,
+    maxLength: 100,
+    example: 'Rivera',
+    description: 'Trimmed name with letters, spaces, hyphens or apostrophes.',
+  })
   @IsString()
   @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @Length(1, 100)
   lastname!: string;
 
-  @ApiProperty({ minLength: 5, writeOnly: true })
+  @ApiProperty({ minLength: 5, writeOnly: true, example: 'example-password' })
   @IsString()
   @MinLength(5)
   password!: string;
 
-  @ApiProperty({ enum: ['TUTOR', 'STUDENT'] })
+  @ApiProperty({ enum: ['TUTOR', 'STUDENT'], example: 'STUDENT' })
   @IsIn(['TUTOR', 'STUDENT'])
   role!: ProfileRole;
 }
 
 class UserBody {
-  @ApiProperty() id!: string;
-  @ApiProperty() email!: string;
-  @ApiProperty() name!: string;
-  @ApiProperty() lastname!: string;
-  @ApiProperty({ enum: ['TUTOR', 'STUDENT'] }) role!: ProfileRole;
+  @ApiProperty({ format: 'uuid', example: '9bde4480-bcc5-4159-8c74-304e887bbd67' }) id!: string;
+  @ApiProperty({ format: 'email', example: 'alex@example.test' }) email!: string;
+  @ApiProperty({ example: 'Alex' }) name!: string;
+  @ApiProperty({ example: 'Rivera' }) lastname!: string;
+  @ApiProperty({ enum: ['TUTOR', 'STUDENT'], example: 'STUDENT' }) role!: ProfileRole;
 }
 
 class AuthResponse {
@@ -85,16 +126,25 @@ export class AuthController {
   @ApiResponse({
     status: 201,
     type: AuthResponse,
+    headers: sessionHeader,
     description: 'Account created and signed in. Role is permanent.',
   })
-  @ApiResponse({ status: 409, description: 'Email is already taken.' })
-  @ApiResponse({ status: 400, description: 'Invalid fields, password, email or profile type.' })
-  @ApiResponse({ status: 429, description: 'Authentication attempt limit exceeded.' })
-  @ApiResponse({
-    status: 503,
-    description:
-      'Authentication storage unavailable. If session saving fails after account commit, sign in when storage recovers.',
+  @apiError(409, 'Email is already taken.', {
+    code: 'duplicate_email',
+    message: 'Email is already taken.',
   })
+  @apiError(400, 'Invalid registration.', validationError, {
+    code: 'invalid_input',
+    message: 'Email, password or profile type is invalid.',
+  })
+  @originError
+  @rateLimited
+  @apiError(
+    503,
+    'Authentication unavailable. If the account was created, sign in when service recovers.',
+    authUnavailable,
+    storageUnavailable
+  )
   async register(@Body() body: RegisterBody, @Req() request: Request) {
     await this.sessions.prepare(request);
     const account = await this.authentication.register(body);
@@ -104,9 +154,12 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(200)
-  @ApiResponse({ status: 200, type: AuthResponse })
-  @ApiResponse({ status: 401, description: 'Invalid credentials or retired account.' })
-  @ApiResponse({ status: 429, description: 'Authentication attempt limit exceeded.' })
+  @ApiResponse({ status: 200, type: AuthResponse, headers: sessionHeader })
+  @apiError(400, 'Invalid login request.', validationError)
+  @apiError(401, 'Invalid credentials or retired account.', invalidSession)
+  @originError
+  @rateLimited
+  @unavailable
   async login(@Body() body: LoginBody, @Req() request: Request) {
     await this.sessions.prepare(request);
     const account = await this.authentication.login(body.email, body.password);
@@ -116,7 +169,14 @@ export class AuthController {
   @Public()
   @Post('logout')
   @HttpCode(204)
-  @ApiResponse({ status: 204, description: 'Current session invalidated and cookie cleared.' })
+  @ApiOperation({ security: [{ cookie: [] }, {}] })
+  @ApiResponse({
+    status: 204,
+    description: 'Current session invalidated and cookie cleared.',
+    headers: sessionHeader,
+  })
+  @originError
+  @unavailable
   async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
     await this.sessions.logout(request);
     response.clearCookie(SESSION_COOKIE, this.sessions.cookieOptions);
@@ -125,10 +185,8 @@ export class AuthController {
   @Get('me')
   @ApiCookieAuth()
   @ApiResponse({ status: 200, type: AuthResponse })
-  @ApiResponse({
-    status: 401,
-    description: 'Missing, expired, revoked or retired account session.',
-  })
+  @apiError(401, 'Missing, expired, revoked or retired account session.', invalidSession)
+  @unavailable
   me(@Req() request: AuthenticatedRequest) {
     return { user: request.user };
   }

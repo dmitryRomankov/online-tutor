@@ -1,5 +1,6 @@
-import { AlertCircle, LoaderCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
+import { AuthErrorNotice } from './auth-feedback';
 import type { useAuthForm } from './useAuthForm';
 
 export function AuthFormActions({
@@ -8,29 +9,20 @@ export function AuthFormActions({
   pending,
 }: Pick<ReturnType<typeof useAuthForm>, 'registering' | 'failure' | 'pending'>) {
   return (
-    <div className="form-actions order-[5] max-[640.01px]:mt-[-4px]">
+    <div className="form-actions order-5 phone:mt-[-4px]">
       {failure && (
-        <div
-          className="auth-error flex items-start gap-2.5 [padding:14px_16px] mb-4 [border:1px_solid_#f3b9b3] rounded-[8px] text-destructive bg-[#fef2f2] text-[14px] leading-[1.5] [overflow-wrap:anywhere] [&>svg]:shrink-0 [&>svg]:mt-0.5 [&_strong]:font-medium [&_p]:[margin:4px_0_0]"
-          role="alert"
+        <AuthErrorNotice
+          title={registering ? 'Could not create account' : 'Could not sign in'}
+          showIcon
         >
-          <AlertCircle size={18} aria-hidden="true" />
-          <div>
-            <strong>
-              {registering ? 'Could not create account' : 'Could not sign in'}
-            </strong>
-            <p>{failure}</p>
-            {registering && failure.includes('temporarily unavailable') && (
-              <p>If your account was created, try signing in after service recovers.</p>
-            )}
-          </div>
-        </div>
+          <p>{failure}</p>
+          {registering && failure.includes('temporarily unavailable') && (
+            <p>If your account was created, try signing in after service recovers.</p>
+          )}
+        </AuthErrorNotice>
       )}
-      <Button
-        type="submit"
-        className="auth-submit max-[640.01px]:w-full max-[640.01px]:min-h-11"
-      >
-        {pending && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+      <Button type="submit" disabled={pending} className="phone:min-h-11 phone:w-full">
+        {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
         {pending
           ? registering
             ? 'Creating account…'

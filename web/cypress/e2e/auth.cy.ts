@@ -1,23 +1,57 @@
 describe('US01 / US02 frontend', () => {
   let current: { id: string; email: string; name: string; lastname: string; role: string } | null;
-  const student = { id: 'student-fixture', email: 'alex.rivera@example.test', name: 'Alex', lastname: 'Rivera', role: 'STUDENT' };
+  const student = {
+    id: 'student-fixture',
+    email: 'alex.rivera@example.test',
+    name: 'Alex',
+    lastname: 'Rivera',
+    role: 'STUDENT',
+  };
   const password = 'abcde';
 
   beforeEach(() => {
     current = null;
-    cy.intercept('GET', '**/api/auth/me', request => {
+    cy.intercept('GET', '**/api/connections', { body: [] });
+    cy.intercept('GET', '**/api/auth/me', (request) => {
       request.reply(current ? { statusCode: 200, body: { user: current } } : { statusCode: 401 });
     }).as('identity');
   });
 
+  it('keeps the mobile auth menu sized and keyboard operable', () => {
+    cy.viewport(402, 874);
+    cy.visit('/sign-in');
+    cy.contains('button', /^Menu$/).should('have.css', 'min-width', '80px');
+    cy.contains('button', /^Menu$/).should('have.css', 'min-height', '44px');
+    cy.contains('button', /^Menu$/).focus();
+    cy.press(Cypress.Keyboard.Keys.ENTER);
+    cy.contains('[role="menuitem"]', 'Sign in').should('have.focus');
+    cy.press(Cypress.Keyboard.Keys.DOWN);
+    cy.contains('[role="menuitem"]', 'Create account').should('have.focus');
+    cy.press(Cypress.Keyboard.Keys.ESC);
+    cy.get('[role="menu"]').should('not.exist');
+    cy.contains('button', /^Menu$/).should('have.focus');
+  });
+
   it('registers a tutor at phone size and signs out from the account menu', () => {
     cy.viewport(402, 874);
-    cy.intercept('POST', '**/api/auth/register', request => {
-      expect(request.body).to.deep.equal({ name: 'Alex', lastname: 'Rivera', email: 'new.tutor@example.test', password, role: 'TUTOR' });
-      current = { id: 'tutor-fixture', email: 'new.tutor@example.test', name: 'Alex', lastname: 'Rivera', role: 'TUTOR' };
+    cy.intercept('POST', '**/api/auth/register', (request) => {
+      expect(request.body).to.deep.equal({
+        name: 'Alex',
+        lastname: 'Rivera',
+        email: 'new.tutor@example.test',
+        password,
+        role: 'TUTOR',
+      });
+      current = {
+        id: 'tutor-fixture',
+        email: 'new.tutor@example.test',
+        name: 'Alex',
+        lastname: 'Rivera',
+        role: 'TUTOR',
+      };
       request.reply({ statusCode: 201, body: { user: current } });
     });
-    cy.intercept('POST', '**/api/auth/logout', request => {
+    cy.intercept('POST', '**/api/auth/logout', (request) => {
       current = null;
       request.reply({ statusCode: 204 });
     });
@@ -41,7 +75,7 @@ describe('US01 / US02 frontend', () => {
 
   it('signs in an existing student on desktop and restores identity after reload', () => {
     cy.viewport(1440, 900);
-    cy.intercept('POST', '**/api/auth/login', request => {
+    cy.intercept('POST', '**/api/auth/login', (request) => {
       expect(request.body).to.deep.equal({ email: student.email, password });
       current = student;
       request.reply({ statusCode: 200, body: { user: current } });
@@ -88,7 +122,9 @@ describe('US01 / US02 frontend', () => {
     current = student;
     cy.visit('/student');
     cy.contains('Your account is ready').should('be.visible');
-    cy.then(() => { current = null; });
+    cy.then(() => {
+      current = null;
+    });
     cy.reload();
     cy.location('pathname').should('eq', '/sign-in');
     cy.contains('Your account is ready').should('not.exist');
@@ -112,7 +148,10 @@ describe('US01 / US02 frontend', () => {
   });
 });
 
-for (const [width, height] of [[1440, 900], [402, 874]]) {
+for (const [width, height] of [
+  [1440, 900],
+  [402, 874],
+]) {
   it(`keeps registration errors inline and the profile warning amber at ${width}px`, () => {
     cy.viewport(width, height);
     cy.intercept('GET', '**/api/auth/me', { statusCode: 401 });
@@ -120,13 +159,16 @@ for (const [width, height] of [[1440, 900], [402, 874]]) {
     cy.contains('button', 'Create account').click();
     for (const field of ['name', 'lastname', 'email', 'password']) {
       cy.get(`#${field}-error`).should('have.css', 'color', 'rgb(180, 35, 24)');
-      cy.get(`#${field}`).then($control => {
-        cy.get(`#${field}-error`).then($error => {
-          expect($error[0].getBoundingClientRect().top).to.be.at.least($control[0].getBoundingClientRect().bottom);
+      cy.get(`#${field}`).then(($control) => {
+        cy.get(`#${field}-error`).then(($error) => {
+          expect($error[0].getBoundingClientRect().top).to.be.at.least(
+            $control[0].getBoundingClientRect().bottom
+          );
         });
       });
     }
-    cy.get('.profile-help:visible').should('have.css', 'color', 'rgb(146, 64, 14)')
+    cy.get('.profile-help:visible')
+      .should('have.css', 'color', 'rgb(146, 64, 14)')
       .and('have.css', 'background-color', 'rgb(255, 244, 214)');
     cy.screenshot(`registration-errors-${width}`, { capture: 'fullPage' });
   });

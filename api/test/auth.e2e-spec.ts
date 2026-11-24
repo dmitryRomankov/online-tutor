@@ -236,7 +236,9 @@ describe('US01 and US02 authentication', () => {
   });
 
   it.each([
-    {}, { email: 'user@example.test' }, { password: 'abcde' },
+    {},
+    { email: 'user@example.test' },
+    { password: 'abcde' },
     { email: 123, password: 'abcde' },
     { email: 'user@example.test', password: ['abcde'] },
     { email: 'user@example.test', password: 'abcde', role: 'ADMIN' },

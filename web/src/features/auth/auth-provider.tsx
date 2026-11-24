@@ -12,6 +12,7 @@ interface AuthContextValue {
   checking: boolean;
   error: Error | null;
   refresh: () => void;
+  expire: () => Promise<void>;
   login: (credentials: Credentials, signal?: AbortSignal) => Promise<void>;
   register: (registration: Registration, signal?: AbortSignal) => Promise<void>;
   logout: () => Promise<void>;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: session.data,
         checking: session.isPending,
         error: session.error,
+        expire: () => setIdentity(null),
         refresh: () => {
           void session.refetch();
         },

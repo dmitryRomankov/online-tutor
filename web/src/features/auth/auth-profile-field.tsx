@@ -1,4 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
+import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import styles from './auth.module.css';
 import type { useAuthForm } from './useAuthForm';
 
 export function DesktopProfileField({
@@ -7,15 +10,15 @@ export function DesktopProfileField({
   selectRole,
 }: Pick<ReturnType<typeof useAuthForm>, 'role' | 'errors' | 'selectRole'>) {
   return (
-    <div className="profile-field [&_legend]:text-[14px] [&_legend]:font-medium [&_legend]:leading-[20px] order-[0] max-[640.01px]:order-[4] profile-desktop max-[640.01px]:hidden">
+    <div className="order-0 phone:hidden">
       <fieldset
-        className="profile-radio p-3 [border:1px_solid_var(--border)] rounded-[8px] [&_legend]:[padding:0_4px] [&_label]:inline-flex [&_label]:items-center [&_label]:gap-2 [&_label]:mr-6 [&_label]:min-h-8 [&_label]:text-[14px] [&_label]:cursor-pointer [&_input]:w-4 [&_input]:h-4 [&_input]:[accent-color:var(--foreground)] [&_input:focus-visible]:[outline:2px_solid_var(--ring)] [&_input:focus-visible]:[outline-offset:3px]"
+        className={styles.roleOptions}
         aria-describedby={
           errors.role ? 'role-error-desktop role-help-desktop' : 'role-help-desktop'
         }
         aria-invalid={Boolean(errors.role)}
       >
-        <legend>Profile type</legend>
+        <legend className={styles.fieldLabel}>Profile type</legend>
         {(['TUTOR', 'STUDENT'] as const).map((value) => (
           <label key={value}>
             <input
@@ -30,22 +33,13 @@ export function DesktopProfileField({
         ))}
       </fieldset>
       {errors.role && (
-        <p
+        <FieldError
           id="role-error-desktop"
-          className="field-error m-0 text-[13px] leading-[1.5] text-destructive"
-          role="alert"
-        >
-          {errors.role?.message}
-        </p>
+          className="text-[13px] leading-[1.5]"
+          errors={[errors.role]}
+        />
       )}
-      <p
-        id="role-help-desktop"
-        className="profile-help m-0 text-[#92400e] text-[12px] leading-[1.5] flex items-start gap-2 mt-2 p-3 [border:1px_solid_#f3d18a] rounded-[8px] bg-[#fff4d6] [&_svg]:shrink-0 [&_svg]:mt-0.25 max-[640.01px]:text-[14px] max-[640.01px]:mt-4"
-        role="note"
-      >
-        <AlertTriangle size={16} aria-hidden="true" />
-        Your profile type cannot be changed later.
-      </p>
+      <ProfileTypeHelp id="role-help-desktop" />
     </div>
   );
 }
@@ -56,39 +50,44 @@ export function MobileProfileField({
   onRoleChange,
 }: Pick<ReturnType<typeof useAuthForm>, 'role' | 'errors' | 'onRoleChange'>) {
   return (
-    <div className="profile-field [&_legend]:text-[14px] [&_legend]:font-medium [&_legend]:leading-[20px] order-[0] max-[640.01px]:order-[4] profile-mobile hidden max-[640.01px]:block">
-      <div className="profile-select [&_label]:text-[14px] [&_label]:font-medium [&_label]:leading-[20px] [&_select]:w-full [&_select]:min-h-11 [&_select]:[padding:8px_12px] [&_select]:[border:1px_solid_var(--input)] [&_select]:rounded-[8px] [&_select]:bg-card [&_select]:text-foreground [&_select]:text-[14px] [&_select:focus-visible]:[outline:2px_solid_var(--ring)] [&_select:focus-visible]:[outline-offset:2px] max-[640.01px]:flex max-[640.01px]:flex-col max-[640.01px]:gap-2">
-        <label htmlFor="role">Profile type</label>
-        <select
+    <div className="hidden phone:order-4 phone:block">
+      <Field className="gap-2" data-invalid={Boolean(errors.role)}>
+        <FieldLabel htmlFor="role" className="leading-5 text-foreground">
+          Profile type
+        </FieldLabel>
+        <NativeSelect
           id="role"
+          className="h-11 rounded-lg bg-card px-3 pr-9 text-[14px] text-foreground shadow-none"
           value={role}
           onChange={onRoleChange}
-          aria-describedby={
-            errors.role ? 'role-error-mobile role-help-mobile' : 'role-help-mobile'
-          }
+          aria-describedby={errors.role ? 'role-error-mobile role-help-mobile' : 'role-help-mobile'}
           aria-invalid={Boolean(errors.role)}
         >
-          <option value="STUDENT">Student</option>
-          <option value="TUTOR">Tutor</option>
-        </select>
-      </div>
+          <NativeSelectOption value="STUDENT">Student</NativeSelectOption>
+          <NativeSelectOption value="TUTOR">Tutor</NativeSelectOption>
+        </NativeSelect>
+      </Field>
       {errors.role && (
-        <p
+        <FieldError
           id="role-error-mobile"
-          className="field-error m-0 text-[13px] leading-[1.5] text-destructive"
-          role="alert"
-        >
-          {errors.role?.message}
-        </p>
+          className="text-[13px] leading-[1.5]"
+          errors={[errors.role]}
+        />
       )}
-      <p
-        id="role-help-mobile"
-        className="profile-help m-0 text-[#92400e] text-[12px] leading-[1.5] flex items-start gap-2 mt-2 p-3 [border:1px_solid_#f3d18a] rounded-[8px] bg-[#fff4d6] [&_svg]:shrink-0 [&_svg]:mt-0.25 max-[640.01px]:text-[14px] max-[640.01px]:mt-4"
-        role="note"
-      >
-        <AlertTriangle size={16} aria-hidden="true" />
-        Your profile type cannot be changed later.
-      </p>
+      <ProfileTypeHelp id="role-help-mobile" />
     </div>
+  );
+}
+
+function ProfileTypeHelp({ id }: { id: string }) {
+  return (
+    <p
+      id={id}
+      className="profile-help m-0 mt-2 flex items-start gap-2 rounded-lg border border-warning-border bg-warning-surface p-3 text-[12px] leading-[1.5] text-warning phone:mt-4 phone:text-[14px]"
+      role="note"
+    >
+      <AlertTriangle size={16} aria-hidden="true" className="mt-0.25 shrink-0" />
+      Your profile type cannot be changed later.
+    </p>
   );
 }
