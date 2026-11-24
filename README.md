@@ -6,6 +6,21 @@ A diploma project for one-to-one language lessons. The `online-tutor` repository
 
 Use Node **24.19.0** (`nvm install` then `nvm use`, if you use nvm) and npm 10 or newer. The project deliberately requires Node 24 rather than the machine's older Node 20 default.
 
+## Commands and checks
+
+```bash
+npm run dev:web       # only Next.js
+npm run dev:api       # only NestJS
+npm run lint
+npm run typecheck
+npm test
+npm run test:coverage
+npm run build
+npm run test:smoke    # after build; starts/stops production apps, uses ports 3000/3001
+npm run test:e2e      # same checks plus Cypress in a real browser
+npm run check        # lint + typecheck + tests + build
+```
+
 ```bash
 CYPRESS_CACHE_FOLDER="$PWD/.cache/Cypress" npm ci
 cp web/.env.example web/.env.local
@@ -75,21 +90,6 @@ Account and password-hash writes commit atomically. Session IDs rotate on regist
 Logout disconnects sockets for that session on the current API instance. Every packet rechecks stored authentication; idle sockets on other instances are checked every five seconds. Room-specific authorization will accompany room operations. Inner authentication code depends on account/password ports. Prisma, Argon2id, PostgreSQL session and Nest adapters are selected in `AuthModule`. Tests inject an isolated session store; production uses PostgreSQL.
 
 Run `npm run test:auth:integration` for the HTTP/WebSocket contracts against a disposable migrated PostgreSQL database. It includes concurrent duplicate registration and credential-write rollback checks. The standard API tests use isolated adapters without cloud writes. The PostgreSQL test runner requirements are in [database setup](docs/database/README.md).
-
-## Commands and checks
-
-```bash
-npm run dev:web       # only Next.js
-npm run dev:api       # only NestJS
-npm run lint
-npm run typecheck
-npm test
-npm run test:coverage
-npm run build
-npm run test:smoke    # after build; starts/stops production apps, uses ports 3000/3001
-npm run test:e2e      # same checks plus Cypress in a real browser
-npm run check        # lint + typecheck + tests + build
-```
 
 After building, run either app in production mode with `npm run start --workspace @diploma/web` or `npm run start --workspace @diploma/api`. The web build prepares a standalone server with its public/static assets, matching the frontend container.
 
