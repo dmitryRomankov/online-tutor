@@ -96,6 +96,8 @@ Keep ports 3000/3001 free for smoke/E2E tests. Cypress's browser binary is store
 
 GitHub Actions runs checks and browser smoke coverage on pushes and pull requests once this folder is published to a GitHub repository. Deployment is not configured; Azure resources, identities and secrets are needed first.
 
+CI runs the Jest suites with coverage. On the GitHub Actions run page, download `frontend-coverage` or `backend-coverage` under **Artifacts**. Each archive includes `lcov.info` and an HTML report at `lcov-report/index.html`. Cypress and PostgreSQL checks run separately from these reports.
+
 ## Containers and deployment
 
 Run Docker builds from the repository root:

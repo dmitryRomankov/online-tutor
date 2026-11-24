@@ -17,8 +17,29 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Run Jest with frontend and backend coverage
+        id: coverage
+        run: npm run test:coverage
+      - run: npm run build
       - run: npm run test:e2e
+      - name: Upload frontend coverage
+        if: ${{ !cancelled() && steps.coverage.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-coverage
+          path: web/coverage/
+          if-no-files-found: error
+          overwrite: true
+      - name: Upload backend coverage
+        if: ${{ !cancelled() && steps.coverage.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage
+          path: api/coverage/
+          if-no-files-found: error
+          overwrite: true
 
   database:
     runs-on: ubuntu-latest

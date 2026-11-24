@@ -8,5 +8,5 @@ export default createJestConfig({
   moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
   modulePathIgnorePatterns: ['<rootDir>/.next/'],
   testMatch: ['<rootDir>/src/**/*.test.tsx'],
-  collectCoverageFrom: ['src/components/**/*.tsx'],
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/*.test.{ts,tsx}'],
 });
