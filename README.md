@@ -65,29 +65,6 @@ Prisma models the tables; reviewed SQL migrations own checks, partial/expression
 
 Compose binds PostgreSQL to loopback; `npm run infra:down` preserves its volumes. Compose's sample `diploma` login is for local provisioning only.
 
-## Registration and login (US01 and US02)
-
-The frontend provides `/register` and `/sign-in`, based on Figma A02/A01 at desktop and 402px phone widths. Both use the light semantic colors, IBM Plex Sans and shadcn/Radix controls. Password confirmation also appears on desktop for consistency with the phone flow. Successful authentication opens `/tutor` or `/student`; these account-entry shells show the real authenticated identity and sign-out controls. Lesson and schedule content will accompany their respective stories.
-
-One TanStack Query cache owns the current frontend identity. It rechecks on focus and every minute, hides protected content until identity is verified, routes expired sessions to sign-in, and removes other cached data when identity changes. Credentials stay in the form/request; the backend owns the HttpOnly cookie. Browser tests use isolated API response fixtures for successful authentication and the live backend health endpoint for the connection check.
-
-Set `DATABASE_URL` to the restricted runtime connection and `SESSION_SECRET` to a random value of at least 32 characters in `api/.env`. Configure the same settings in Vercel for deployed authentication. Generate a signing secret with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` and store it privately.
-
-| Endpoint                  | Input                                                                  | Successful result                       |
-| ------------------------- | ---------------------------------------------------------------------- | --------------------------------------- |
-| `POST /api/auth/register` | `name`, `lastname`, `email`, `password`, `role` (`TUTOR` or `STUDENT`) | 201, account created and signed in      |
-| `POST /api/auth/login`    | `email`, `password`                                                    | 200, new authenticated session          |
-| `POST /api/auth/logout`   | Current cookie; empty body                                             | 204, session revoked and cookie cleared |
-| `GET /api/auth/me`        | Current cookie                                                         | 200, current user                       |
-
-Registration, login and current-user responses contain only `{"user":{"id":"…","name":"Alex","lastname":"Rivera","email":"alex@example.test","role":"STUDENT"}}`. Names are required, trimmed, 1–100 Unicode characters and allow letters, combining marks, spaces, hyphens and apostrophes. Email is trimmed, stored lowercase, limited to 254 characters and uniquely indexed without case distinctions. The `retired.invalid` domain is reserved for anonymized accounts. Email verification and profile editing are separate stories. New passwords contain at least 5 characters, with no character-type or password-length upper restriction. Existing shorter passwords remain usable at login. Role is fixed. Registration signs in immediately.
-
-The `online_tutor.sid` cookie is HttpOnly, SameSite=Lax, scoped to `/api`, and Secure in production/Vercel. The default absolute lifetime is eight hours; `AUTH_SESSION_TTL_SECONDS` accepts 1–604800 seconds. Browser requests use `credentials: 'include'`; browser mutations must originate from the exact `CLIENT_ORIGIN`. Registration and login share a PostgreSQL-backed limit of 20 attempts per client IP per minute. Vercel proxy handling preserves HTTPS cookies and resolves the client IP.
-
-Account and password-hash writes commit atomically. Session IDs rotate on registration/login and are saved before success is returned. If session storage fails after the account commits, registration can return 503 with the account already created; use login after recovery. Missing session configuration returns 503 for registration/login while liveness remains available. All ordinary controller routes require authentication unless explicitly marked public. Authentication checks account retirement and `auth_epoch` on protected requests and classroom events.
-
-Logout disconnects sockets for that session on the current API instance. Every packet rechecks stored authentication; idle sockets on other instances are checked every five seconds. Room-specific authorization will accompany room operations. Inner authentication code depends on account/password ports. Prisma, Argon2id, PostgreSQL session and Nest adapters are selected in `AuthModule`. Tests inject an isolated session store; production uses PostgreSQL.
-
 Run `npm run test:auth:integration` for the HTTP/WebSocket contracts against a disposable migrated PostgreSQL database. It includes concurrent duplicate registration and credential-write rollback checks. The standard API tests use isolated adapters without cloud writes. The PostgreSQL test runner requirements are in [database setup](docs/database/README.md).
 
 After building, run either app in production mode with `npm run start --workspace @diploma/web` or `npm run start --workspace @diploma/api`. The web build prepares a standalone server with its public/static assets, matching the frontend container.
