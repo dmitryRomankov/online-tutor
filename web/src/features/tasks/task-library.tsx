@@ -48,6 +48,7 @@ export function TaskLibrary() {
           <Input
             id="search-tasks"
             className="min-h-11 bg-card"
+            placeholder="Start typing to search tasks"
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -71,7 +72,7 @@ export function TaskLibrary() {
         </Field>
       </div>
       <section
-        className="rounded-2xl border border-border bg-card p-5"
+        // className="rounded-2xl border border-border bg-card p-5"
         aria-labelledby="your-tasks"
       >
         <h2 className="m-0 text-base font-semibold" id="your-tasks">
@@ -98,23 +99,23 @@ export function TaskLibrary() {
           </p>
         )}
         {tasks.isSuccess && !!matching?.length && (
-          <ul className="mt-2 divide-y">
+          <ul className="mt-2 w-full">
             {matching.map((task) => (
               <li
                 key={task.id}
                 className="flex flex-wrap items-center justify-between gap-2 py-3 phone:block"
               >
-                <div className="min-w-0 wrap-anywhere">
+                <div className=" w-full wrap-anywhere rounded-2xl border border-border bg-card p-5">
                   <h3 className="font-medium">{task.title}</h3>
                   <p className="text-sm text-muted-foreground">
                     {taskFormatLabels[task.type]} · Task v{task.version}
                   </p>
+                  <Button variant="link" className="min-h-11 px-0" asChild>
+                    <Link href={`/tutor/tasks/${task.id}`} aria-label={`Edit task: ${task.title}`}>
+                      Edit task
+                    </Link>
+                  </Button>
                 </div>
-                <Button variant="link" className="min-h-11 px-0" asChild>
-                  <Link href={`/tutor/tasks/${task.id}`} aria-label={`Edit task: ${task.title}`}>
-                    Edit task
-                  </Link>
-                </Button>
               </li>
             ))}
           </ul>
