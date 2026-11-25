@@ -13,7 +13,9 @@ import { seedDemo } from './demo-seed.mjs';
 function command(exe, args, options = {}) {
   const r = spawnSync(exe, args, { cwd: root, encoding: 'utf8', ...options });
   if (r.status !== 0)
-    throw new Error(`${exe.split('/').at(-1)} failed: ${r.stderr || r.stdout || r.error}`);
+    throw new Error(
+      `${exe.split('/').at(-1)} failed: ${r.stderr || r.stdout || r.error || `exit status ${r.status}`}`
+    );
   return r.stdout;
 }
 let directory,
@@ -723,6 +725,7 @@ try {
           ],
           {
             cwd: join(root, 'api'),
+            stdio: 'inherit',
             env: {
               ...process.env,
               AUTH_TEST_DATABASE_URL: urlFor('tutor_app', passwords.tutor_app),

@@ -6,7 +6,7 @@ import { useAuth } from '@/features/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { dashboardPath } from '@/features/auth/api';
 import { useInvitation } from './use-invitation';
-import { connectionError } from './api';
+import { connectionError, ConnectionApiError } from './api';
 
 export function InvitationScreen() {
   const parameters = useSearchParams();
@@ -17,6 +17,7 @@ export function InvitationScreen() {
 function InvitationContent() {
   const state = useInvitation();
   const { auth, preview, accept } = state;
+  const unavailable = preview.error instanceof ConnectionApiError && preview.error.status === 404;
   let content: React.ReactNode;
   if (!state.valid)
     content = (
@@ -66,7 +67,7 @@ function InvitationContent() {
         </Button>
       </div>
     );
-  else if (accept.isSuccess || preview.data?.accepted)
+  else if (!unavailable && (accept.isSuccess || preview.data?.accepted))
     content = (
       <div className="space-y-4">
         <p role="status" className="text-emerald-800">

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InvitationScreen } from './invitation-screen';
@@ -46,10 +46,17 @@ jest.mock('@/features/auth/auth-provider', () => ({ useAuth: () => auth }));
 const reply = (status: number, body: unknown = {}) =>
   ({ status, ok: status >= 200 && status < 300, json: async () => body }) as Response;
 
-function setup(element: React.ReactNode) {
-  const client = new QueryClient({
+const acceptedReply = (url: string) =>
+  Promise.resolve(
+    reply(200, url.endsWith('/accept') ? connection : { ...preview, accepted: true })
+  );
+
+function setup(
+  element: React.ReactNode,
+  client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  })
+) {
   render(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
   return userEvent.setup();
 }
@@ -89,7 +96,7 @@ it('previews tutor and accepts only after explicit confirmation', async () => {
   const user = setup(<InvitationScreen />);
   expect(await screen.findByText('Elena Martin')).toBeVisible();
   expect(fetchMock.mock.calls).toHaveLength(1);
-  fetchMock.mockResolvedValue(reply(200, connection));
+  fetchMock.mockImplementation(acceptedReply);
   await user.click(screen.getByRole('button', { name: 'Accept invitation' }));
   expect(await screen.findByText('You are connected to Elena Martin.')).toBeVisible();
   const accept = fetchMock.mock.calls.find(([url]) => url.endsWith('/accept'));
@@ -102,6 +109,19 @@ it('shows already accepted invitations without another acceptance', async () => 
   setup(<InvitationScreen />);
   expect(await screen.findByRole('link', { name: 'Go to dashboard' })).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Accept invitation' })).not.toBeInTheDocument();
+});
+
+it('clears an accepted preview when the server reports that the invitation is unavailable', async () => {
+  const client = new QueryClient();
+  fetchMock.mockResolvedValue(reply(200, { ...preview, accepted: true }));
+  setup(<InvitationScreen />, client);
+  expect(await screen.findByText('You are connected to Elena Martin.')).toBeVisible();
+
+  fetchMock.mockResolvedValue(reply(404));
+  await act(() => client.invalidateQueries({ queryKey: ['connections'] }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Ask your tutor for a new link.');
+  expect(screen.queryByText('You are connected to Elena Martin.')).not.toBeInTheDocument();
 });
 
 it('blocks tutor profiles without fetching invitation details', () => {
@@ -215,7 +235,7 @@ it('does not carry accepted state to another invitation token', async () => {
   const view = render(tree());
   const user = userEvent.setup();
   await screen.findByText('Elena Martin');
-  fetchMock.mockResolvedValue(reply(200, connection));
+  fetchMock.mockImplementation(acceptedReply);
   await user.click(screen.getByRole('button', { name: 'Accept invitation' }));
   await screen.findByText('You are connected to Elena Martin.');
   parameters = new URLSearchParams({ token: 'b'.repeat(64) });

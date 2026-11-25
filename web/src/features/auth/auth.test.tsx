@@ -22,7 +22,7 @@ const student = {
 };
 const tutor = {
   id: 'tutor-id',
-  email: 'tutor.alex@example.test',
+  email: 'alex!rivera@example.test',
   name: 'Alex',
   lastname: 'Rivera',
   role: 'TUTOR',
@@ -43,12 +43,12 @@ function setup(children: React.ReactNode) {
   return { client, user: userEvent.setup() };
 }
 
-async function fillLogin(user: ReturnType<typeof userEvent.setup>) {
+async function fillLogin(user: ReturnType<typeof userEvent.setup>, email = student.email) {
   if (screen.queryByLabelText('Name')) {
     await user.type(screen.getByLabelText('Name'), 'Alex');
     await user.type(screen.getByLabelText('Last name'), 'Rivera');
   }
-  await user.type(screen.getByLabelText('Email'), 'alex.rivera@example.test');
+  await user.type(screen.getByLabelText('Email'), email);
   await user.type(screen.getByLabelText('Password', { exact: true }), 'a long test password');
 }
 
@@ -79,7 +79,7 @@ it.each([student, tutor])(
       Promise.resolve(options?.method === 'POST' ? reply(200, { user: account }) : reply(401))
     );
     const { user } = setup(<AuthForm mode="login" />);
-    await fillLogin(user);
+    await fillLogin(user, account.email.toUpperCase());
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith(account.role === 'TUTOR' ? '/tutor' : '/student')
@@ -87,7 +87,7 @@ it.each([student, tutor])(
     const [, options] = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')!;
     expect(options.credentials).toBe('include');
     expect(JSON.parse(options.body)).toEqual({
-      email: 'alex.rivera@example.test',
+      email: account.email,
       password: 'a long test password',
     });
   }
@@ -110,7 +110,7 @@ it('registers selected fixed role and sends only the backend contract', async ()
   );
   const { user } = setup(<AuthForm mode="register" />);
   await user.click(screen.getByRole('radio', { name: 'Tutor' }));
-  await fillLogin(user);
+  await fillLogin(user, tutor.email);
   await user.clear(screen.getByLabelText('Name'));
   await user.type(screen.getByLabelText('Name'), ' Zoë ');
   await user.clear(screen.getByLabelText('Last name'));
@@ -122,7 +122,7 @@ it('registers selected fixed role and sends only the backend contract', async ()
   await waitFor(() => expect(replace).toHaveBeenCalledWith('/tutor'));
   const [, options] = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')!;
   expect(JSON.parse(options.body)).toEqual({
-    email: 'alex.rivera@example.test',
+    email: tutor.email,
     password: 'abcde',
     name: 'Zoë',
     lastname: 'O’Connor-李',

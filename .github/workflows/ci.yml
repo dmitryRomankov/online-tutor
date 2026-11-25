@@ -66,5 +66,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run db:test
+      - run: npm run db:generate
+      - run: npm run test:auth:integration
       - run: npm run db:validate

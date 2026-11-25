@@ -58,10 +58,9 @@ describe('US03 tutor invitations', () => {
       cy.contains('a', 'Manage students').click();
       cy.location('pathname').should('eq', '/tutor/students');
       cy.contains('button', 'Create invitation link').click();
-      cy.get('#invitation-link').should(
-        'have.value',
-        `http://localhost:3000/invite?token=${token}`
-      );
+      cy.location('origin').then((origin) => {
+        cy.get('#invitation-link').should('have.value', `${origin}/invite?token=${token}`);
+      });
       cy.window().then((win) =>
         cy.stub(win.navigator.clipboard, 'writeText').resolves().as('copy')
       );
@@ -141,5 +140,18 @@ describe('US03 tutor invitations', () => {
     cy.contains('button', 'Accept invitation').click();
     cy.get('[role="alert"]').should('contain', 'already connected to another tutor');
     cy.contains('a', 'Go to dashboard').should('not.exist');
+  });
+
+  it('shows an accepted invitation as unavailable after the relationship ends', () => {
+    current = student;
+    connected = true;
+    cy.visit(`/invite?token=${token}`);
+    cy.contains('You are connected to Elena Martin.').should('be.visible');
+
+    cy.intercept('POST', '**/api/connections/invitations/preview', { statusCode: 404 });
+    cy.reload();
+    cy.get('[role="alert"]').should('contain', 'Ask your tutor for a new link.');
+    cy.contains('You are connected to Elena Martin.').should('not.exist');
+    cy.contains('button', 'Accept invitation').should('not.exist');
   });
 });

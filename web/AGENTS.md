@@ -11,3 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## UI components
 
 Add new shared controls from the official Radix-based shadcn/ui registry. From the repository root, run `npx shadcn@latest add <component> --cwd web --dry-run` to review changes, then repeat without `--dry-run` to install. Import the resulting components from `@/components/ui`. Keep the project theme, use the existing `cn` helper from `@/lib/utils`, and adapt the generated styles to match Figma. Review diffs before overwriting customized controls.
+
+## Code writing
+
+When writing code use `../.agent-work/clean-code-principles.md` as a reference for maintaining readability, consistency, and best practices.

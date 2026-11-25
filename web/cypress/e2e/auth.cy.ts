@@ -2,7 +2,7 @@ describe('US01 / US02 frontend', () => {
   let current: { id: string; email: string; name: string; lastname: string; role: string } | null;
   const student = {
     id: 'student-fixture',
-    email: 'alex.rivera@example.test',
+    email: 'alex!rivera@example.test',
     name: 'Alex',
     lastname: 'Rivera',
     role: 'STUDENT',
@@ -73,7 +73,7 @@ describe('US01 / US02 frontend', () => {
     cy.contains('You have been signed out.').should('be.visible');
   });
 
-  it('signs in an existing student on desktop and restores identity after reload', () => {
+  it('signs in an existing student with email punctuation and restores identity after reload', () => {
     cy.viewport(1440, 900);
     cy.intercept('POST', '**/api/auth/login', (request) => {
       expect(request.body).to.deep.equal({ email: student.email, password });

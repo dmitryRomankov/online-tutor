@@ -15,15 +15,18 @@ databaseDescribe('US03 PostgreSQL atomic invitations', () => {
   const accounts = new PrismaAccounts(url);
   const database = new pg.Client({ connectionString: url });
   let passwordHash: string;
+
   beforeAll(async () => {
     await database.connect();
     passwordHash = await new ArgonPasswords().hash('abcde');
   });
+
   afterAll(async () => {
     await repository.onModuleDestroy();
     await accounts.onModuleDestroy();
     await database.end();
   });
+
   const user = (role: 'TUTOR' | 'STUDENT') =>
     accounts.create({
       email: randomUUID() + '@example.test',
@@ -49,6 +52,7 @@ databaseDescribe('US03 PostgreSQL atomic invitations', () => {
       expect.not.objectContaining({ token: expect.anything(), token_hash: expect.anything() }),
     ]);
   });
+
   it('accepts repeated concurrent requests once and shows both sides', async () => {
     const { tutor, student } = await fixture();
     const invite = await service.create(tutor);
@@ -62,6 +66,41 @@ databaseDescribe('US03 PostgreSQL atomic invitations', () => {
     expect((await service.list(student)).map((r) => r.person.id)).toEqual([tutor.id]);
     expect((await service.preview(student, invite.token)).accepted).toBe(true);
   });
+
+  it('keeps a used invitation unavailable after its relationship ends', async () => {
+    const { tutor, student } = await fixture();
+    const otherTutor = await user('TUTOR');
+    const invite = await service.create(tutor);
+    const original = await service.accept(student, invite.token);
+    const close = (id: string) =>
+      database.query('UPDATE tutor_students SET ended_at=clock_timestamp() WHERE id=$1', [id]);
+    const expectUnavailable = async () => {
+      await expect(service.preview(student, invite.token)).rejects.toMatchObject({
+        code: 'invitation_unavailable',
+      });
+      await expect(service.accept(student, invite.token)).rejects.toMatchObject({
+        code: 'invitation_unavailable',
+      });
+    };
+
+    await close(original.id);
+    await expectUnavailable();
+
+    const next = await service.create(otherTutor);
+    const reassigned = await service.accept(student, next.token);
+    await expectUnavailable();
+    expect(await service.list(student)).toEqual([reassigned]);
+
+    await close(reassigned.id);
+    const fresh = await service.create(tutor);
+    await service.accept(student, fresh.token);
+    await expectUnavailable();
+    expect((await service.preview(student, fresh.token)).accepted).toBe(true);
+    expect((await service.invitations(tutor)).find(({ id }) => id === invite.id)?.status).toBe(
+      'accepted'
+    );
+  });
+
   it('allows exactly one student to consume a shared invitation', async () => {
     const { tutor, student } = await fixture();
     const other = await user('STUDENT');
@@ -78,6 +117,7 @@ databaseDescribe('US03 PostgreSQL atomic invitations', () => {
     ]);
     expect(await service.list(tutor)).toHaveLength(1);
   });
+
   it('prevents two tutors racing to connect one student', async () => {
     const { tutor, student } = await fixture();
     const other = await user('TUTOR');
@@ -98,6 +138,7 @@ databaseDescribe('US03 PostgreSQL atomic invitations', () => {
     );
     expect(count.rows[0].n).toBe(1);
   });
+
   it('rejects foreign revocation, expired and revoked tokens without changing links', async () => {
     const { tutor, student } = await fixture();
     const other = await user('TUTOR');
@@ -126,6 +167,7 @@ databaseDescribe('US03 PostgreSQL atomic invitations', () => {
     }
     expect(await service.list(student)).toEqual([]);
   });
+
   it('serializes revocation racing acceptance with one final outcome', async () => {
     const { tutor, student } = await fixture();
     const invite = await service.create(tutor);
@@ -140,6 +182,7 @@ databaseDescribe('US03 PostgreSQL atomic invitations', () => {
     expect(Boolean(rows[0].accepted_at)).not.toBe(Boolean(rows[0].revoked_at));
     expect(await service.list(student)).toHaveLength(rows[0].accepted_at ? 1 : 0);
   });
+
   it('hides another student and denies retired tutors and tutor actors', async () => {
     const { tutor, student } = await fixture();
     const other = await user('STUDENT');

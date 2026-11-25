@@ -1,3 +1,4 @@
+import isEmail from 'validator/lib/isEmail';
 import { z } from 'zod';
 
 const email = z
@@ -5,8 +6,15 @@ const email = z
   .trim()
   .toLowerCase()
   .min(1, 'Enter your email.')
-  .max(254, 'Enter a valid email address.')
-  .email('Enter a valid email address.');
+  .max(254, 'Enter a valid email address.');
+// Use the same parser as the API's IsEmail, with the account-storage restrictions.
+const registrationEmail = email.refine(
+  (value) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value) &&
+    !value.endsWith('@retired.invalid') &&
+    isEmail(value),
+  'Enter a valid email address.'
+);
 const password = z.string().min(1, 'Enter your password.');
 const name = (label: string) =>
   z
@@ -25,7 +33,7 @@ export function authSchema(mode: 'login' | 'register') {
     .object({
       name: registering ? name('name') : z.string(),
       lastname: registering ? name('last name') : z.string(),
-      email,
+      email: registering ? registrationEmail : email,
       password: registering
         ? password.refine((value) => [...value].length >= 5, 'Use at least 5 characters.')
         : password,

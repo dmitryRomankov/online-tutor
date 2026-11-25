@@ -276,7 +276,7 @@ describe('US01 and US02 authentication', () => {
   });
 
   it('matches email punctuation literally during login', async () => {
-    const name = 'literal.%_' + randomUUID() + '@example.test';
+    const name = 'literal!.%_' + randomUUID() + '@example.test';
     await request(app.getHttpServer())
       .post('/api/auth/register')
       .send({ name: 'Alex', lastname: 'Rivera', email: name, password: PASSWORD, role: 'TUTOR' })

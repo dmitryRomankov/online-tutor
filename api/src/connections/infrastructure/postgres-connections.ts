@@ -141,15 +141,19 @@ export class PostgresConnections implements ConnectionRepository {
         `
         SELECT i.*, i.expires_at<=clock_timestamp() AS expired, u.name, u.lastname
         FROM public.tutor_invitations i JOIN public.users u ON u.id=i.tutor_id
-        WHERE i.token_hash=$1 AND u.retired_at IS NULL`,
-        [hash]
+        WHERE i.token_hash=$1 AND u.retired_at IS NULL
+          AND (
+            i.accepted_at IS NULL
+            OR (i.accepted_student_id=$2 AND EXISTS (
+              SELECT 1 FROM public.tutor_students l
+              WHERE l.tutor_id=i.tutor_id AND l.student_id=$2 AND l.ended_at IS NULL
+                AND l.linked_at<=i.accepted_at
+            ))
+          )`,
+        [hash, studentId]
       );
       const row = rows[0];
-      if (
-        !row ||
-        row.revoked_at ||
-        (row.accepted_at ? row.accepted_student_id !== studentId : row.expired)
-      )
+      if (!row || row.revoked_at || (!row.accepted_at && row.expired))
         throw new ConnectionError('invitation_unavailable');
       return {
         tutor: { id: row.tutor_id, name: row.name, lastname: row.lastname },
@@ -188,22 +192,33 @@ export class PostgresConnections implements ConnectionRepository {
       const row = rows[0];
       if (row.revoked_at || (row.accepted_at ? row.accepted_student_id !== studentId : row.expired))
         throw new ConnectionError('invitation_unavailable');
-      const links = await client.query<{ id: string; tutor_id: string }>(
-        'SELECT id,tutor_id FROM public.tutor_students WHERE student_id=$1 AND ended_at IS NULL FOR UPDATE',
-        [studentId]
+      const links = await client.query<{
+        id: string;
+        tutor_id: string;
+        existed_at_acceptance: boolean | null;
+      }>(
+        `SELECT l.id,l.tutor_id,l.linked_at<=i.accepted_at AS existed_at_acceptance
+         FROM public.tutor_students l JOIN public.tutor_invitations i ON i.id=$2
+         WHERE l.student_id=$1 AND l.ended_at IS NULL FOR UPDATE OF l`,
+        [studentId, row.id]
       );
 
-      let linkId = links.rows[0]?.id;
-      if (links.rows[0] && links.rows[0].tutor_id !== tutorId)
+      const activeLink = links.rows[0];
+      if (
+        row.accepted_at &&
+        (activeLink?.tutor_id !== tutorId || !activeLink.existed_at_acceptance)
+      )
+        throw new ConnectionError('invitation_unavailable');
+      if (activeLink && activeLink.tutor_id !== tutorId)
         throw new ConnectionError('already_connected');
 
-      if (row.accepted_at && !linkId) throw new ConnectionError('invitation_unavailable');
-
+      let linkId = activeLink?.id;
       if (!linkId)
         linkId = (
           await client.query<{ id: string }>(
             `
-        INSERT INTO public.tutor_students(tutor_id,student_id) VALUES($1,$2) RETURNING id`,
+        INSERT INTO public.tutor_students(tutor_id,student_id,linked_at)
+        VALUES($1,$2,clock_timestamp()) RETURNING id`,
             [tutorId, studentId]
           )
         ).rows[0].id;
