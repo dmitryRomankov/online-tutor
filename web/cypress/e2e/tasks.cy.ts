@@ -77,8 +77,9 @@ describe('US04 single-choice task library and editor', () => {
           .contains('a', /^Tasks$/)
           .click();
       }
-      cy.contains('Create your first single-choice task.').should('be.visible');
+      cy.contains('Create your first task.').should('be.visible');
       cy.contains('a', 'Create task').click();
+      cy.contains('a', /^Single choice$/).click();
       cy.contains('h1', 'Single choice editor').should('be.visible');
 
       cy.contains('button', 'Save task').click();

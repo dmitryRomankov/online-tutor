@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { useAuth } from '@/features/auth/auth-provider';
 import { taskErrorMessage, tasksApi } from './api';
-import type { Task } from './api';
-import { useTaskSession } from './use-task-session';
+import type { SingleChoiceTask } from './api';
+import { FillBlanksEditor } from './fill-blanks-editor';
+import { useTaskSession } from './useTaskSession';
 import { useTaskEditor } from './useTaskEditor';
 
 export function ExistingTask({ id }: { id: string }) {
@@ -22,7 +23,13 @@ export function ExistingTask({ id }: { id: string }) {
 
   useTaskSession(task.error);
 
-  if (task.data) return <TaskEditor key={id} task={task.data} />;
+  if (task.data) {
+    return task.data.type === 'fill_blanks' ? (
+      <FillBlanksEditor key={id} task={task.data} />
+    ) : (
+      <TaskEditor key={id} task={task.data} />
+    );
+  }
   if (task.isPending) return <p role="status">Loading task…</p>;
 
   return (
@@ -40,7 +47,7 @@ export function ExistingTask({ id }: { id: string }) {
   );
 }
 
-export function TaskEditor({ task }: { task?: Task }) {
+export function TaskEditor({ task }: { task?: SingleChoiceTask }) {
   const {
     register,
     errors,

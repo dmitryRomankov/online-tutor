@@ -7,21 +7,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { useAuth } from '@/features/auth/auth-provider';
-import { taskErrorMessage, tasksApi } from './api';
-import { useTaskSession } from './use-task-session';
+import { taskErrorMessage, taskFormatLabels, tasksApi } from './api';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { useTaskSession } from './useTaskSession';
 
 export function TaskLibrary() {
   const { user } = useAuth();
   const [search, setSearch] = useState('');
+  const [format, setFormat] = useState('');
+
   const tasks = useQuery({
     queryKey: ['tasks', user?.id],
     queryFn: ({ signal }) => tasksApi.list(signal),
     enabled: user?.role === 'TUTOR',
     retry: false,
   });
+
   useTaskSession(tasks.error);
-  const matching = tasks.data?.filter((task) =>
-    task.title.toLowerCase().includes(search.trim().toLowerCase())
+
+  const matching = tasks.data?.filter(
+    (task) =>
+      (!format || task.type === format) &&
+      task.title.toLowerCase().includes(search.trim().toLowerCase())
   );
 
   return (
@@ -35,16 +42,34 @@ export function TaskLibrary() {
           <Link href="/tutor/tasks/new">Create task</Link>
         </Button>
       </div>
-      <Field className="max-w-sm phone:max-w-none">
-        <FieldLabel htmlFor="search-tasks">Search tasks</FieldLabel>
-        <Input
-          id="search-tasks"
-          className="min-h-11 bg-card"
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </Field>
+      <div className="grid gap-4 sm:max-w-2xl sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="search-tasks">Search tasks</FieldLabel>
+          <Input
+            id="search-tasks"
+            className="min-h-11 bg-card"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+        <Field className="[&_[data-slot=native-select-wrapper]]:w-full">
+          <FieldLabel htmlFor="task-format">Format</FieldLabel>
+          <NativeSelect
+            id="task-format"
+            className="min-h-11 bg-card"
+            value={format}
+            onChange={(event) => setFormat(event.target.value)}
+          >
+            <NativeSelectOption value="">All formats</NativeSelectOption>
+            {Object.entries(taskFormatLabels).map(([code, label]) => (
+              <NativeSelectOption key={code} value={code}>
+                {label}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </Field>
+      </div>
       <section
         className="rounded-2xl border border-border bg-card p-5"
         aria-labelledby="your-tasks"
@@ -69,9 +94,7 @@ export function TaskLibrary() {
         )}
         {tasks.isSuccess && matching?.length === 0 && (
           <p className="mt-3 text-sm text-muted-foreground">
-            {tasks.data.length
-              ? 'No tasks match your search.'
-              : 'Create your first single-choice task.'}
+            {tasks.data.length ? 'No tasks match your search.' : 'Create your first task.'}
           </p>
         )}
         {tasks.isSuccess && !!matching?.length && (
@@ -84,7 +107,7 @@ export function TaskLibrary() {
                 <div className="min-w-0 wrap-anywhere">
                   <h3 className="font-medium">{task.title}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Single choice · Task v{task.version}
+                    {taskFormatLabels[task.type]} · Task v{task.version}
                   </p>
                 </div>
                 <Button variant="link" className="min-h-11 px-0" asChild>

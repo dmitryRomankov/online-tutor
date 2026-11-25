@@ -210,6 +210,7 @@ erDiagram
     uuid image_asset_id
     timestamptz published_at
     timestamptz created_at
+    text passage
   }
   public_tasks {
     uuid id

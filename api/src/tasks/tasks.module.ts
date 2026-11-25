@@ -9,10 +9,7 @@ import { PostgresTasks } from './infrastructure/postgres-tasks.js';
 
 const errors = {
   forbidden: [403, 'Only tutors can manage tasks.'],
-  invalid_task: [
-    400,
-    'Enter a title, a prompt, at least two choices, and select one correct choice.',
-  ],
+  invalid_task: [400, 'Check the task fields and its answer configuration.'],
   not_found: [404, 'Task not found.'],
   version_conflict: [409, 'A newer version of this task was saved.'],
   unavailable: [503, 'Tasks are temporarily unavailable.'],

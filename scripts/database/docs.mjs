@@ -79,6 +79,7 @@ const meanings = {
   type_code: 'Task format lookup reference.',
   title: 'Non-empty human-readable title.',
   prompt: 'Task instructions shown to the learner.',
+  passage: 'Versioned fill-in-the-blanks text with numbered markers. NULL for legacy versions and other formats.',
   published_at: 'Publication time; NULL identifies an editable draft.',
   position: 'Positive order within the parent collection.',
   kind_code: 'Allowed payload or input representation.',

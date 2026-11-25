@@ -1,13 +1,9 @@
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { useAuth } from '@/features/auth/auth-provider';
-import { taskErrorMessage, tasksApi } from './api';
-import type { Task } from './api';
-import { useTaskSession } from './use-task-session';
+import type { SingleChoiceTask } from './api';
+import { useSaveTask } from './useSaveTask';
 
 const editorSchema = z
   .object({
@@ -31,18 +27,14 @@ const editorSchema = z
 
 type EditorValues = z.infer<typeof editorSchema>;
 
-const defaults = (task?: Task): EditorValues => ({
+const defaults = (task?: SingleChoiceTask): EditorValues => ({
   title: task?.title ?? '',
   prompt: task?.prompt ?? '',
   choices: (task?.choices ?? ['', '']).map((label) => ({ label })),
   correctChoiceIndex: task?.correctChoiceIndex ?? -1,
 });
 
-export function useTaskEditor(task?: Task) {
-  const { user } = useAuth();
-  const router = useRouter();
-  const client = useQueryClient();
-  const [previous, setPrevious] = useState(task);
+export function useTaskEditor(task?: SingleChoiceTask) {
   const [preview, setPreview] = useState(false);
   const form = useForm<EditorValues>({
     resolver: zodResolver(editorSchema),
@@ -51,23 +43,9 @@ export function useTaskEditor(task?: Task) {
   const choices = useFieldArray({ control: form.control, name: 'choices' });
   const correct = useWatch({ control: form.control, name: 'correctChoiceIndex' });
   const errors = form.formState.errors;
-  const save = useMutation({
-    mutationFn: (values: EditorValues) =>
-      tasksApi.save({ ...values, choices: values.choices.map((choice) => choice.label) }, previous),
-    retry: false,
-    onSuccess: (saved) => {
-      client.setQueryData(['tasks', user?.id, saved.id], saved);
-      void client.invalidateQueries({ queryKey: ['tasks', user?.id], exact: true });
-      if (!previous) {
-        router.push('/tutor/tasks');
-        return;
-      }
-      setPrevious(saved);
-      form.reset(defaults(saved));
-    },
+  const save = useSaveTask(task, (saved) => {
+    if (saved.type === 'single_choice') form.reset(defaults(saved));
   });
-
-  useTaskSession(save.error);
 
   function removeChoice(index: number) {
     choices.remove(index);
@@ -94,14 +72,18 @@ export function useTaskEditor(task?: Task) {
     addChoice: () => choices.append({ label: '' }),
     removeChoice,
     selectCorrectChoice,
-    subtitle: previous
-      ? `Task library · Task v${previous.version}`
-      : 'Task library · Tutor authoring',
-    onSubmit: form.handleSubmit((input) => save.mutateAsync(input).catch(() => {})),
-    busy: save.isPending || isSubmitting,
-    createComplete: save.isSuccess && !previous,
-    showSaved: save.isSuccess && Boolean(previous) && !isDirty,
-    saveError: save.error ? taskErrorMessage(save.error) : null,
+    subtitle: save.subtitle,
+    onSubmit: form.handleSubmit((input) =>
+      save.submit({
+        ...input,
+        type: 'single_choice',
+        choices: input.choices.map(({ label }) => label),
+      })
+    ),
+    busy: save.busy || isSubmitting,
+    createComplete: save.createComplete,
+    showSaved: save.showSaved && !isDirty,
+    saveError: save.error,
     preview,
     previewPrompt: values.prompt.trim() || 'Task prompt',
     previewChoices: choices.fields.map(({ id }, index) => ({

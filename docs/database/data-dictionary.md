@@ -882,6 +882,7 @@ Draft or immutable published task definition.
 | image_asset_id | uuid | YES | — | Reference to image asset. |
 | published_at | timestamp with time zone | YES | — | Publication time; NULL identifies an editable draft. |
 | created_at | timestamp with time zone | NO | now() | Record creation time. |
+| passage | text | YES | — | Versioned fill-in-the-blanks text with numbered markers. NULL for legacy versions and other formats. |
 
 Constraints:
 
@@ -889,6 +890,7 @@ Constraints:
 - `task_versions_created_at_not_null`: `NOT NULL created_at`
 - `task_versions_id_not_null`: `NOT NULL id`
 - `task_versions_image_asset_id_fkey`: `FOREIGN KEY (image_asset_id) REFERENCES assets(id)`
+- `task_versions_passage_check`: `CHECK (((passage IS NULL) OR ((type_code = 'fill_blanks'::text) AND (btrim(passage) <> ''::text))))`
 - `task_versions_pkey`: `PRIMARY KEY (id)`
 - `task_versions_prompt_check`: `CHECK ((btrim(prompt) <> ''::text))`
 - `task_versions_prompt_not_null`: `NOT NULL prompt`

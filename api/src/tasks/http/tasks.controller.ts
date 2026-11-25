@@ -12,16 +12,21 @@ import {
 import {
   ApiBody,
   ApiCookieAuth,
+  ApiExtraModels,
   ApiOperation,
   ApiProperty,
+  ApiPropertyOptional,
   ApiResponse,
   ApiTags,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../../auth/http/auth.guard.js';
 import { apiError, invalidSession, rejectedOrigin } from '../../docs/error-response.js';
 import { Tasks } from '../application/tasks.js';
 
 class TaskBody {
+  @ApiPropertyOptional({ enum: ['single_choice'], default: 'single_choice' })
+  type?: 'single_choice';
   @ApiProperty({ maxLength: 200 }) title!: string;
   @ApiProperty({ maxLength: 5000 }) prompt!: string;
   @ApiProperty({
@@ -39,11 +44,32 @@ class EditTaskBody extends TaskBody {
   @ApiProperty({ minimum: 1, type: 'integer' }) expectedVersion!: number;
 }
 
+class FillBlanksBody {
+  @ApiProperty({ enum: ['fill_blanks'] }) type!: 'fill_blanks';
+  @ApiProperty({ maxLength: 200 }) title!: string;
+  @ApiProperty({ maxLength: 5000 }) prompt!: string;
+  @ApiProperty({ maxLength: 5000, example: 'Yesterday I [1] home.' }) passage!: string;
+  @ApiProperty({
+    type: 'array',
+    minItems: 1,
+    maxItems: 50,
+    items: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'string', maxLength: 500 } },
+    example: [['went', 'walked']],
+    description: 'One ordered list of accepted answers per numbered blank.',
+  })
+  blanks!: string[][];
+}
+
+class EditFillBlanksBody extends FillBlanksBody {
+  @ApiProperty({ minimum: 1, type: 'integer' }) expectedVersion!: number;
+}
+
 class TaskSummaryResponse {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ format: 'uuid' }) versionId!: string;
   @ApiProperty({ minimum: 1, type: 'integer' }) version!: number;
   @ApiProperty() title!: string;
+  @ApiProperty({ enum: ['single_choice', 'fill_blanks'] }) type!: string;
 }
 
 class TaskResponse extends TaskBody {
@@ -52,12 +78,22 @@ class TaskResponse extends TaskBody {
   @ApiProperty({ minimum: 1, type: 'integer' }) version!: number;
 }
 
+class FillBlanksResponse extends FillBlanksBody {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) versionId!: string;
+  @ApiProperty({ minimum: 1, type: 'integer' }) version!: number;
+}
+
+const taskResponse = {
+  oneOf: [{ $ref: getSchemaPath(TaskResponse) }, { $ref: getSchemaPath(FillBlanksResponse) }],
+};
+
 const invalid = apiError(
   400,
   'Invalid task content or identifier.',
   {
     code: 'invalid_task',
-    message: 'Enter a title, a prompt, at least two choices, and select one correct choice.',
+    message: 'Check the task fields and its answer configuration.',
   },
   { error: 'Bad Request', message: 'Validation failed (uuid is expected)' }
 );
@@ -68,6 +104,14 @@ const missing = apiError(404, 'The task is unavailable to this tutor.', {
 });
 
 @ApiTags('Tasks')
+@ApiExtraModels(
+  TaskBody,
+  FillBlanksBody,
+  EditTaskBody,
+  EditFillBlanksBody,
+  TaskResponse,
+  FillBlanksResponse
+)
 @ApiCookieAuth()
 @apiError(401, 'Sign in required.', invalidSession)
 @apiError(
@@ -87,7 +131,7 @@ export class TasksController {
   @Get()
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'List the current versions of your single-choice tasks without answer keys.',
+    summary: 'List the current versions of your tasks without answer keys.',
   })
   @ApiResponse({ status: 200, type: TaskSummaryResponse, isArray: true })
   list(@Req() request: AuthenticatedRequest) {
@@ -97,7 +141,7 @@ export class TasksController {
   @Get(':id')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Open the current version of your task for editing.' })
-  @ApiResponse({ status: 200, type: TaskResponse })
+  @ApiResponse({ status: 200, schema: taskResponse })
   @invalid
   @missing
   find(@Req() request: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
@@ -106,9 +150,11 @@ export class TasksController {
 
   @Post()
   @Header('Cache-Control', 'no-store')
-  @ApiOperation({ summary: 'Save a complete single-choice task as an assignable version.' })
-  @ApiBody({ type: TaskBody })
-  @ApiResponse({ status: 201, type: TaskResponse })
+  @ApiOperation({ summary: 'Save a complete task as an assignable version.' })
+  @ApiBody({
+    schema: { oneOf: [{ $ref: getSchemaPath(TaskBody) }, { $ref: getSchemaPath(FillBlanksBody) }] },
+  })
+  @ApiResponse({ status: 201, schema: taskResponse })
   @invalid
   create(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
     return this.tasks.create(request.user, body);
@@ -117,8 +163,12 @@ export class TasksController {
   @Put(':id')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Save a new version and preserve previous task versions.' })
-  @ApiBody({ type: EditTaskBody })
-  @ApiResponse({ status: 200, type: TaskResponse })
+  @ApiBody({
+    schema: {
+      oneOf: [{ $ref: getSchemaPath(EditTaskBody) }, { $ref: getSchemaPath(EditFillBlanksBody) }],
+    },
+  })
+  @ApiResponse({ status: 200, schema: taskResponse })
   @invalid
   @missing
   @apiError(409, 'A newer version already exists.', {

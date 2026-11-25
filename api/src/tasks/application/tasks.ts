@@ -1,33 +1,69 @@
 import { z } from 'zod';
 import type { UserIdentity } from '../../auth/application/authentication.js';
 
-const taskSchema = z.strictObject({
+const taskFields = {
   title: z.string().trim().min(1).max(200),
   prompt: z.string().trim().min(1).max(5000),
+};
+
+const singleChoice = z.strictObject({
+  ...taskFields,
+  type: z.literal('single_choice').default('single_choice'),
   choices: z.array(z.string().trim().min(1).max(500)).min(2).max(50),
   correctChoiceIndex: z.number().int().min(0),
 });
 
-const checkChoice = (task: TaskSchema) => task.correctChoiceIndex < task.choices.length;
+const acceptedAnswers = z
+  .array(z.string().trim().min(1).max(500))
+  .min(1)
+  .max(20)
+  .refine(
+    (answers) => new Set(answers.map((answer) => answer.toLowerCase())).size === answers.length
+  );
 
-const createTask = taskSchema.refine(checkChoice);
+const fillBlanks = z.strictObject({
+  ...taskFields,
+  type: z.literal('fill_blanks'),
+  passage: z.string().trim().min(1).max(5000),
+  blanks: z.array(acceptedAnswers).min(1).max(50),
+});
 
-const editTask = taskSchema
-  .extend({ expectedVersion: z.number().int().positive() })
-  .refine(checkChoice);
+function validContent(task: TaskContent) {
+  if (task.type === 'single_choice') return task.correctChoiceIndex < task.choices.length;
 
-export type TaskSchema = z.infer<typeof taskSchema>;
-export type TaskSummary = { id: string; versionId: string; version: number; title: string };
-export type SingleChoiceTask = TaskSummary & TaskSchema;
+  const markers = [...task.passage.matchAll(/\[(\d+)\]/g)];
+  return (
+    markers.length === task.blanks.length &&
+    markers.every((match, index) => match[1] === String(index + 1))
+  );
+}
+
+const version = { expectedVersion: z.number().int().positive() };
+const createTask = z.union([singleChoice, fillBlanks]).refine(validContent);
+const editTask = z
+  .union([singleChoice.extend(version), fillBlanks.extend(version)])
+  .refine(validContent);
+
+export type SingleChoiceContent = z.infer<typeof singleChoice>;
+export type TaskContent = z.infer<typeof singleChoice> | z.infer<typeof fillBlanks>;
+export type TaskType = TaskContent['type'];
+export type TaskSummary = {
+  id: string;
+  versionId: string;
+  version: number;
+  title: string;
+  type: TaskType;
+};
+export type Task = TaskSummary & TaskContent;
 
 export interface TaskRepository {
   list(ownerId: string): Promise<TaskSummary[]>;
-  find(ownerId: string, id: string): Promise<SingleChoiceTask | undefined>;
+  find(ownerId: string, id: string): Promise<Task | undefined>;
   save(
     ownerId: string,
-    input: TaskSchema,
+    input: TaskContent,
     edit?: { id: string; expectedVersion: number }
-  ): Promise<SingleChoiceTask>;
+  ): Promise<Task>;
 }
 
 export class TaskError extends Error {
