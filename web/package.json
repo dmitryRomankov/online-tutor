@@ -7,7 +7,7 @@
     "build": "next build && node ../scripts/prepare-web.mjs",
     "start": "node .next/standalone/web/server.js",
     "lint": "eslint . --max-warnings 0",
-    "typecheck": "next typegen && tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit && tsc --project cypress/tsconfig.json",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage --runInBand"

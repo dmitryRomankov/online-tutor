@@ -61,9 +61,9 @@ describe('US03 tutor invitations', () => {
       cy.location('origin').then((origin) => {
         cy.get('#invitation-link').should('have.value', `${origin}/invite?token=${token}`);
       });
-      cy.window().then((win) =>
-        cy.stub(win.navigator.clipboard, 'writeText').resolves().as('copy')
-      );
+      cy.window().then((win) => {
+        cy.stub(win.navigator.clipboard, 'writeText').as('copy').resolves();
+      });
       cy.contains('button', 'Copy invitation link').click();
       cy.get('@copy').should('have.been.calledOnce');
       cy.contains('Invitation link copied.').should('be.visible');
