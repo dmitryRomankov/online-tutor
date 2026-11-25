@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/features/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { dashboardPath } from '@/features/auth/api';
-import { useInvitation } from './use-invitation';
+import { useInvitation } from './useInvitation';
 import { connectionError, ConnectionApiError } from './api';
 
 export function InvitationScreen() {

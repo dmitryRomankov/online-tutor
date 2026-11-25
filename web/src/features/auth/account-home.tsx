@@ -24,9 +24,11 @@ import styles from './dashboard-shell.module.css';
 export function AccountHome({
   role,
   view = 'dashboard',
+  children,
 }: {
   role: ProfileRole;
-  view?: 'dashboard' | 'students';
+  view?: 'dashboard' | 'students' | 'tasks';
+  children?: React.ReactNode;
 }) {
   const auth = useAuth();
   const router = useRouter();
@@ -80,9 +82,13 @@ export function AccountHome({
       </main>
     );
 
-  const profile = role === 'TUTOR' ? 'Tutor' : 'Student';
+  const isTutor = role === 'TUTOR';
+  const profile = isTutor ? 'Tutor' : 'Student';
+  const viewTitle = { dashboard: 'Dashboard', students: 'Students', tasks: 'Task library' }[view];
   return (
-    <main className={`${styles.sheet} flex overflow-hidden bg-card`}>
+    <main
+      className={`${styles.sheet} flex overflow-hidden ${view === 'tasks' ? 'bg-background' : 'bg-card'}`}
+    >
       <aside className={`account-sidebar ${styles.sidebar} flex flex-col phone:hidden`}>
         <Link className={`${authStyles.brand} px-2`} href={dashboardPath(role)}>
           Online Tutor
@@ -99,13 +105,22 @@ export function AccountHome({
             <LayoutDashboard size={17} />
             Dashboard
           </Link>
-          {role === 'TUTOR' && (
+          {isTutor && (
             <Link
               href="/tutor/students"
               aria-current={view === 'students' ? 'page' : undefined}
               className="mt-2 flex min-h-11 items-center rounded-lg px-3 text-sm text-foreground hover:bg-blue-50 aria-[current=page]:bg-blue-50 aria-[current=page]:text-blue-700"
             >
               Students
+            </Link>
+          )}
+          {isTutor && (
+            <Link
+              href="/tutor/tasks"
+              aria-current={view === 'tasks' ? 'page' : undefined}
+              className="mt-2 flex min-h-11 items-center rounded-lg px-3 text-sm text-foreground hover:bg-info-surface aria-[current=page]:bg-info-surface aria-[current=page]:text-info"
+            >
+              Tasks
             </Link>
           )}
         </nav>
@@ -133,7 +148,7 @@ export function AccountHome({
           className={`${styles.topbar} min-h-12 px-6 py-2 text-[12px] text-muted-foreground phone:min-h-19 phone:p-4`}
         >
           <span className="desktop-context phone:hidden">
-            {profile} workspace / {view === 'students' ? 'Students' : 'Dashboard'}
+            {profile} workspace / {viewTitle}
           </span>
           <Link className={`${authStyles.brand} hidden phone:block`} href={dashboardPath(role)}>
             Online Tutor
@@ -147,7 +162,7 @@ export function AccountHome({
                 aria-label="Account menu"
               >
                 <span className="truncate">
-                  {auth.user.name} {auth.user.lastname}
+                  {view === 'tasks' ? 'Menu' : `${auth.user.name} ${auth.user.lastname}`}
                 </span>
                 <ChevronDown size={15} />
               </Button>
@@ -156,6 +171,11 @@ export function AccountHome({
               <DropdownMenuLabel className="px-3 py-2 text-[12px] font-normal text-muted-foreground">
                 {profile} · profile type is fixed
               </DropdownMenuLabel>
+              {isTutor && (
+                <DropdownMenuItem asChild>
+                  <Link href="/tutor/tasks">Task library</Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 disabled={leaving}
                 onSelect={() => {
@@ -169,8 +189,12 @@ export function AccountHome({
           </DropdownMenu>
         </header>
         <section className="p-6 phone:p-4">
-          <h1 className={authStyles.heading}>{view === 'students' ? 'Students' : 'Dashboard'}</h1>
-          <p className={authStyles.description}>{profile} workspace</p>
+          {view !== 'tasks' && (
+            <>
+              <h1 className={authStyles.heading}>{viewTitle}</h1>
+              <p className={authStyles.description}>{profile} workspace</p>
+            </>
+          )}
           {failure && (
             <AuthErrorNotice title="Could not sign out">
               <p>{failure}</p>
@@ -192,7 +216,11 @@ export function AccountHome({
               </p>
             </div>
           )}
-          <ConnectionsPanel key={`${auth.user.id}:${view}`} manage={view === 'students'} />
+          {view === 'tasks' ? (
+            children
+          ) : (
+            <ConnectionsPanel key={`${auth.user.id}:${view}`} manage={view === 'students'} />
+          )}
         </section>
       </div>
     </main>

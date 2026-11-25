@@ -712,7 +712,7 @@ try {
   });
   if (process.argv.includes('--auth')) {
     await check(
-      'US01–US03 HTTP, WebSocket and invitation contracts against isolated PostgreSQL',
+      'US01–US04 HTTP, WebSocket, invitation and task contracts against isolated PostgreSQL',
       async () => {
         command(
           process.execPath,
@@ -721,7 +721,7 @@ try {
             join(root, 'node_modules/jest/bin/jest.js'),
             '--runInBand',
             '--testPathPatterns',
-            'auth.e2e-spec.ts|session-storage.e2e-spec.ts|connections.*e2e-spec.ts',
+            'auth.e2e-spec.ts|session-storage.e2e-spec.ts|connections.*e2e-spec.ts|tasks-database.e2e-spec.ts',
           ],
           {
             cwd: join(root, 'api'),

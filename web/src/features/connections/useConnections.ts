@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/auth-provider';
-import { useConnectionSession } from './use-connection-session';
+import { useConnectionSession } from './useConnectionSession';
 import { connectionsApi } from './api';
 
 export function useConnections(manage = false) {

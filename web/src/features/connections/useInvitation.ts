@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/auth-provider';
 import { authHref, validInvitationToken } from '@/features/auth/invitation-links';
-import { useConnectionSession } from './use-connection-session';
+import { useConnectionSession } from './useConnectionSession';
 import { connectionsApi, ConnectionApiError } from './api';
 
 export function useInvitation() {
