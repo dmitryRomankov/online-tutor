@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import type { PoolClient } from 'pg';
-import { TaskError } from '../application/tasks.js';
+import { TaskError, taskTypes } from '../application/tasks.js';
 import type {
   SingleChoiceContent,
   Task,
@@ -33,10 +33,10 @@ export class PostgresTasks implements TaskRepository {
          JOIN LATERAL (
            SELECT id,version_no,title,type_code FROM public.task_versions
            WHERE task_id=t.id AND published_at IS NOT NULL ORDER BY version_no DESC LIMIT 1
-         ) v ON v.type_code IN ('single_choice','fill_blanks')
+         ) v ON v.type_code=ANY($2::text[])
          WHERE t.owner_id=$1 AND t.archived_at IS NULL
          ORDER BY t.created_at DESC,t.id`,
-        [ownerId]
+        [ownerId, taskTypes]
       );
       return rows;
     });
@@ -52,13 +52,14 @@ export class PostgresTasks implements TaskRepository {
          JOIN LATERAL (
            SELECT id,version_no,title,prompt,passage,type_code FROM public.task_versions
            WHERE task_id=t.id AND published_at IS NOT NULL ORDER BY version_no DESC LIMIT 1
-         ) v ON v.type_code IN ('single_choice','fill_blanks')
+         ) v ON v.type_code=ANY($3::text[])
          WHERE t.owner_id=$1 AND t.id=$2 AND t.archived_at IS NULL`,
-        [ownerId, id]
+        [ownerId, id, taskTypes]
       );
       if (!row) return undefined;
 
       const { passage, type, ...task } = row;
+      if (type === 'written_response') return { ...task, type };
       if (type === 'fill_blanks') {
         const { rows } = await client.query<{ label: string; answers: string[] }>(
           `SELECT i.label, array_agg(k.accepted_text ORDER BY k.variant_no) AS answers
@@ -147,7 +148,14 @@ export class PostgresTasks implements TaskRepository {
       ]
     );
     if (content.type === 'fill_blanks') await this.writeBlanks(client, saved.id, content.blanks);
-    else await this.writeChoices(client, saved.id, content);
+    else if (content.type === 'single_choice') await this.writeChoices(client, saved.id, content);
+    else {
+      await client.query(
+        `INSERT INTO public.task_inputs(task_version_id,position,kind_code,label,required)
+         VALUES($1,1,'text',$2,true)`,
+        [saved.id, content.prompt]
+      );
+    }
 
     await client.query(
       'UPDATE public.task_versions SET published_at=clock_timestamp() WHERE id=$1',
@@ -219,7 +227,7 @@ export class PostgresTasks implements TaskRepository {
       [edit.id]
     );
     const current = rows.find((row) => row.published);
-    if (!current || !['single_choice', 'fill_blanks'].includes(current.type_code))
+    if (!current || !taskTypes.some((supported) => supported === current.type_code))
       throw new TaskError('not_found');
     if (current.type_code !== type) throw new TaskError('invalid_task');
     if (current.version_no !== edit.expectedVersion) throw new TaskError('version_conflict');

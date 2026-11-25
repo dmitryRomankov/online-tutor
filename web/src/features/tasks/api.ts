@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { apiUrl } from '@/lib/api';
 
-const taskType = z.enum(['single_choice', 'fill_blanks']);
+const taskType = z.enum(['single_choice', 'fill_blanks', 'written_response']);
 const taskIdentity = z.object({
   id: z.uuid(),
   versionId: z.uuid(),
@@ -21,19 +21,26 @@ const fillBlanksTask = taskIdentity.extend({
   passage: z.string(),
   blanks: z.array(z.array(z.string())),
 });
-const task = z.union([choiceTask, fillBlanksTask]);
+const writtenResponseTask = taskIdentity.extend({
+  type: z.literal('written_response'),
+  prompt: z.string(),
+});
+const task = z.union([choiceTask, fillBlanksTask, writtenResponseTask]);
 
 export type Task = z.infer<typeof task>;
 export type TaskType = Task['type'];
 export type SingleChoiceTask = z.infer<typeof choiceTask>;
 export type FillBlanksTask = z.infer<typeof fillBlanksTask>;
+export type WrittenResponseTask = z.infer<typeof writtenResponseTask>;
 export type TaskInput =
   | Pick<SingleChoiceTask, 'type' | 'title' | 'prompt' | 'choices' | 'correctChoiceIndex'>
-  | Pick<FillBlanksTask, 'type' | 'title' | 'prompt' | 'passage' | 'blanks'>;
+  | Pick<FillBlanksTask, 'type' | 'title' | 'prompt' | 'passage' | 'blanks'>
+  | Pick<WrittenResponseTask, 'type' | 'title' | 'prompt'>;
 
 export const taskFormatLabels = {
   single_choice: 'Single choice',
   fill_blanks: 'Fill in the blanks',
+  written_response: 'Written response',
 } satisfies Record<TaskType, string>;
 
 export class TaskApiError extends Error {

@@ -25,7 +25,13 @@ const fillBlanks = {
   blanks: [['walked', 'went'], ['cooked'], ['cleared'], ['read'], ['called']],
 };
 
-databaseDescribe('US04 and US05 task authoring against PostgreSQL', () => {
+const writtenResponse = {
+  type: 'written_response',
+  title: 'Weekend reflection',
+  prompt: 'What did you do last weekend?',
+};
+
+databaseDescribe('US04–US06 task authoring against PostgreSQL', () => {
   let app: INestApplication;
   let db: pg.Client;
   const api = () => request(app.getHttpServer());
@@ -414,5 +420,182 @@ databaseDescribe('US04 and US05 task authoring against PostgreSQL', () => {
       { position: 3, is_answered: true, is_correct: true },
       { position: 4, is_answered: false, is_correct: false },
     ]);
+  });
+
+  it('publishes one required text input without keys and enforces written task ownership and versioning', async () => {
+    const tutor = await register('TUTOR');
+    const other = await register('TUTOR');
+    const student = await register('STUDENT');
+    const create = (input: object, cookie = tutor.cookie) =>
+      api().post('/api/tasks').set('Cookie', cookie).send(input);
+    for (const invalid of [
+      { ...writtenResponse, title: ' ' },
+      { ...writtenResponse, prompt: ' ' },
+      { ...writtenResponse, choices: ['one', 'two'], correctChoiceIndex: 0 },
+      { ...writtenResponse, blanks: [['answer']] },
+      { ...writtenResponse, acceptedAnswers: ['answer'] },
+    ])
+      await create(invalid).expect(400);
+    await create(writtenResponse, student.cookie).expect(403);
+    const { body: original } = await create(writtenResponse).expect(201);
+    expect(original).toEqual({
+      ...writtenResponse,
+      id: expect.any(String),
+      versionId: expect.any(String),
+      version: 1,
+    });
+    await api()
+      .get('/api/tasks')
+      .set('Cookie', tutor.cookie)
+      .expect(200, [
+        {
+          id: original.id,
+          versionId: original.versionId,
+          version: 1,
+          title: writtenResponse.title,
+          type: 'written_response',
+        },
+      ]);
+
+    const path = `/api/tasks/${original.id}`;
+    await api().get(path).set('Cookie', tutor.cookie).expect(200, original);
+    await api().get(path).set('Cookie', student.cookie).expect(403);
+    await api().get(path).set('Cookie', other.cookie).expect(404);
+    const lesson = await lessonVersion(tutor.id);
+    await attach(lesson, original.versionId);
+    const updated = { ...writtenResponse, prompt: 'Describe your last holiday.' };
+    const edit = (input: object, cookie = tutor.cookie) =>
+      api()
+        .put(path)
+        .set('Cookie', cookie)
+        .send({ ...input, expectedVersion: 1 });
+    await edit(updated, other.cookie).expect(404);
+    await edit(fillBlanks).expect(400);
+    const { body: saved } = await edit(updated).expect(200);
+    await edit(updated).expect(409);
+    await api().get(path).set('Cookie', tutor.cookie).expect(200, saved);
+    expect(saved).toMatchObject({ ...updated, version: 2 });
+    const assignment = await db.query(
+      'SELECT task_version_id FROM lesson_items WHERE lesson_version_id=$1',
+      [lesson]
+    );
+    expect(assignment.rows).toEqual([{ task_version_id: original.versionId }]);
+
+    const { rows } = await db.query(
+      `SELECT v.prompt,i.kind_code,i.required,i.label,
+              EXISTS (SELECT 1 FROM private.task_text_keys k WHERE k.input_id=i.id) AS has_text_key,
+              EXISTS (SELECT 1 FROM public.task_choices c WHERE c.task_version_id=v.id) AS has_choices
+       FROM task_versions v JOIN task_inputs i ON i.task_version_id=v.id
+       WHERE v.task_id=$1 AND v.published_at IS NOT NULL ORDER BY v.version_no,i.position`,
+      [original.id]
+    );
+    expect(rows).toEqual(
+      [writtenResponse.prompt, updated.prompt].map((prompt) => ({
+        prompt,
+        kind_code: 'text',
+        required: true,
+        label: prompt,
+        has_text_key: false,
+        has_choices: false,
+      }))
+    );
+  });
+
+  it('counts only non-whitespace writing and reviews only the submitted answer revision', async () => {
+    const tutor = await register('TUTOR');
+    const student = await register('STUDENT');
+    const { body: task } = await api()
+      .post('/api/tasks')
+      .set('Cookie', tutor.cookie)
+      .send(writtenResponse)
+      .expect(201);
+    const lesson = await lessonVersion(tutor.id);
+    await attach(lesson, task.versionId);
+    const liveItem = await startLive(lesson, tutor.id, student.id);
+    const {
+      rows: [input],
+    } = await db.query('SELECT id FROM task_inputs WHERE task_version_id=$1', [task.versionId]);
+    const {
+      rows: [live],
+    } = await db.query(
+      'INSERT INTO responses(input_id,session_item_id) VALUES($1,$2) RETURNING id',
+      [input.id, liveItem.id]
+    );
+    const write = async (responseId: string, revision: number, text: string) => {
+      const {
+        rows: [saved],
+      } = await db.query(
+        'INSERT INTO response_revisions(response_id,revision_no,client_event_id,text_value) VALUES($1,$2,$3,$4) RETURNING id',
+        [responseId, revision, randomUUID(), text]
+      );
+      return saved.id as string;
+    };
+    const progress = async () =>
+      (
+        await db.query('SELECT answered_percent FROM live_task_progress WHERE session_item_id=$1', [
+          liveItem.id,
+        ])
+      ).rows[0].answered_percent;
+    await write(live.id, 1, '\t\n\u00a0');
+    expect(await progress()).toBe('0.00');
+    const savedLive = await write(live.id, 2, 'I went to the park.');
+    expect(await progress()).toBe('100.00');
+    const released = () =>
+      db.query(
+        'SELECT response_revision_id,is_correct FROM released_live_results WHERE session_item_id=$1',
+        [liveItem.id]
+      );
+    expect((await released()).rows).toEqual([]);
+    await db.query('INSERT INTO feedback_releases(session_item_id) VALUES($1)', [liveItem.id]);
+    expect((await released()).rows).toEqual([
+      { response_revision_id: savedLive, is_correct: null },
+    ]);
+
+    const {
+      rows: [assignment],
+    } = await db.query(
+      `INSERT INTO homework_assignments(tutor_student_id,title)
+       SELECT id,'Reflection' FROM tutor_students WHERE tutor_id=$1 AND student_id=$2 RETURNING id`,
+      [tutor.id, student.id]
+    );
+    const {
+      rows: [item],
+    } = await db.query(
+      'INSERT INTO homework_items(assignment_id,task_version_id,position) VALUES($1,$2,1) RETURNING id',
+      [assignment.id, task.versionId]
+    );
+    const {
+      rows: [homework],
+    } = await db.query(
+      'INSERT INTO homework_revisions(assignment_id,revision_no) VALUES($1,1) RETURNING id',
+      [assignment.id]
+    );
+    const {
+      rows: [response],
+    } = await db.query(
+      'INSERT INTO responses(input_id,homework_revision_id,homework_item_id) VALUES($1,$2,$3) RETURNING id',
+      [input.id, homework.id, item.id]
+    );
+    const previous = await write(response.id, 1, 'First draft.');
+    const submitted = await write(response.id, 2, 'I went to the park and walked home.');
+    const review = (responseRevisionId: string) =>
+      db.query(
+        "INSERT INTO homework_feedback_comments(response_revision_id,comment) VALUES($1,'Good detail.')",
+        [responseRevisionId]
+      );
+    await expect(review(submitted)).rejects.toMatchObject({ code: '23514' });
+    await db.query('UPDATE homework_revisions SET submitted_at=now() WHERE id=$1', [homework.id]);
+    const status = async () =>
+      (
+        await db.query(
+          'SELECT status FROM homework_revision_status WHERE homework_revision_id=$1',
+          [homework.id]
+        )
+      ).rows[0].status;
+    expect(await status()).toBe('awaiting_review');
+    await expect(review(previous)).rejects.toMatchObject({ code: '23514' });
+    expect(await status()).toBe('awaiting_review');
+    await review(submitted);
+    expect(await status()).toBe('reviewed');
   });
 });

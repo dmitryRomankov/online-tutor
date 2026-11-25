@@ -22,7 +22,7 @@ import {
 } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../../auth/http/auth.guard.js';
 import { apiError, invalidSession, rejectedOrigin } from '../../docs/error-response.js';
-import { Tasks } from '../application/tasks.js';
+import { Tasks, taskTypes } from '../application/tasks.js';
 
 class TaskBody {
   @ApiPropertyOptional({ enum: ['single_choice'], default: 'single_choice' })
@@ -64,12 +64,22 @@ class EditFillBlanksBody extends FillBlanksBody {
   @ApiProperty({ minimum: 1, type: 'integer' }) expectedVersion!: number;
 }
 
+class WrittenResponseBody {
+  @ApiProperty({ enum: ['written_response'] }) type!: 'written_response';
+  @ApiProperty({ maxLength: 200 }) title!: string;
+  @ApiProperty({ maxLength: 5000, example: 'What did you do last weekend?' }) prompt!: string;
+}
+
+class EditWrittenResponseBody extends WrittenResponseBody {
+  @ApiProperty({ minimum: 1, type: 'integer' }) expectedVersion!: number;
+}
+
 class TaskSummaryResponse {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ format: 'uuid' }) versionId!: string;
   @ApiProperty({ minimum: 1, type: 'integer' }) version!: number;
   @ApiProperty() title!: string;
-  @ApiProperty({ enum: ['single_choice', 'fill_blanks'] }) type!: string;
+  @ApiProperty({ enum: [...taskTypes] }) type!: string;
 }
 
 class TaskResponse extends TaskBody {
@@ -84,8 +94,18 @@ class FillBlanksResponse extends FillBlanksBody {
   @ApiProperty({ minimum: 1, type: 'integer' }) version!: number;
 }
 
+class WrittenResponse extends WrittenResponseBody {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) versionId!: string;
+  @ApiProperty({ minimum: 1, type: 'integer' }) version!: number;
+}
+
 const taskResponse = {
-  oneOf: [{ $ref: getSchemaPath(TaskResponse) }, { $ref: getSchemaPath(FillBlanksResponse) }],
+  oneOf: [
+    { $ref: getSchemaPath(TaskResponse) },
+    { $ref: getSchemaPath(FillBlanksResponse) },
+    { $ref: getSchemaPath(WrittenResponse) },
+  ],
 };
 
 const invalid = apiError(
@@ -110,7 +130,10 @@ const missing = apiError(404, 'The task is unavailable to this tutor.', {
   EditTaskBody,
   EditFillBlanksBody,
   TaskResponse,
-  FillBlanksResponse
+  FillBlanksResponse,
+  WrittenResponseBody,
+  EditWrittenResponseBody,
+  WrittenResponse
 )
 @ApiCookieAuth()
 @apiError(401, 'Sign in required.', invalidSession)
@@ -152,7 +175,13 @@ export class TasksController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Save a complete task as an assignable version.' })
   @ApiBody({
-    schema: { oneOf: [{ $ref: getSchemaPath(TaskBody) }, { $ref: getSchemaPath(FillBlanksBody) }] },
+    schema: {
+      oneOf: [
+        { $ref: getSchemaPath(TaskBody) },
+        { $ref: getSchemaPath(FillBlanksBody) },
+        { $ref: getSchemaPath(WrittenResponseBody) },
+      ],
+    },
   })
   @ApiResponse({ status: 201, schema: taskResponse })
   @invalid
@@ -165,7 +194,11 @@ export class TasksController {
   @ApiOperation({ summary: 'Save a new version and preserve previous task versions.' })
   @ApiBody({
     schema: {
-      oneOf: [{ $ref: getSchemaPath(EditTaskBody) }, { $ref: getSchemaPath(EditFillBlanksBody) }],
+      oneOf: [
+        { $ref: getSchemaPath(EditTaskBody) },
+        { $ref: getSchemaPath(EditFillBlanksBody) },
+        { $ref: getSchemaPath(EditWrittenResponseBody) },
+      ],
     },
   })
   @ApiResponse({ status: 200, schema: taskResponse })

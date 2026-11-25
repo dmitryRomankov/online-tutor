@@ -712,7 +712,7 @@ try {
   });
   if (process.argv.includes('--auth')) {
     await check(
-      'US01-US05 HTTP, WebSocket, invitation and task contracts against isolated PostgreSQL',
+      'US01-US06 HTTP, WebSocket, invitation and task contracts against isolated PostgreSQL',
       async () => {
         command(
           process.execPath,

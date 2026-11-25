@@ -28,8 +28,17 @@ const fillBlanks = z.strictObject({
   blanks: z.array(acceptedAnswers).min(1).max(50),
 });
 
+const writtenResponse = z.strictObject({
+  ...taskFields,
+  type: z.literal('written_response'),
+});
+
+const taskContent = z.union([singleChoice, fillBlanks, writtenResponse]);
+
 function validContent(task: TaskContent) {
   if (task.type === 'single_choice') return task.correctChoiceIndex < task.choices.length;
+
+  if (task.type === 'written_response') return true;
 
   const markers = [...task.passage.matchAll(/\[(\d+)\]/g)];
   return (
@@ -39,14 +48,23 @@ function validContent(task: TaskContent) {
 }
 
 const version = { expectedVersion: z.number().int().positive() };
-const createTask = z.union([singleChoice, fillBlanks]).refine(validContent);
+const createTask = taskContent.refine(validContent);
 const editTask = z
-  .union([singleChoice.extend(version), fillBlanks.extend(version)])
+  .union([
+    singleChoice.extend(version),
+    fillBlanks.extend(version),
+    writtenResponse.extend(version),
+  ])
   .refine(validContent);
 
 export type SingleChoiceContent = z.infer<typeof singleChoice>;
-export type TaskContent = z.infer<typeof singleChoice> | z.infer<typeof fillBlanks>;
+export type TaskContent = z.infer<typeof taskContent>;
 export type TaskType = TaskContent['type'];
+export const taskTypes = [
+  'single_choice',
+  'fill_blanks',
+  'written_response',
+] as const satisfies readonly TaskType[];
 export type TaskSummary = {
   id: string;
   versionId: string;

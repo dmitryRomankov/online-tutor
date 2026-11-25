@@ -8,6 +8,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { useAuth } from '@/features/auth/auth-provider';
 import { taskErrorMessage, tasksApi } from './api';
 import type { SingleChoiceTask } from './api';
+import { WrittenResponseEditor } from './written-response-editor';
 import { FillBlanksEditor } from './fill-blanks-editor';
 import { useTaskSession } from './useTaskSession';
 import { useTaskEditor } from './useTaskEditor';
@@ -23,6 +24,9 @@ export function ExistingTask({ id }: { id: string }) {
 
   useTaskSession(task.error);
 
+  if (task.data?.type === 'written_response') {
+    return <WrittenResponseEditor key={id} task={task.data} />;
+  }
   if (task.data) {
     return task.data.type === 'fill_blanks' ? (
       <FillBlanksEditor key={id} task={task.data} />
