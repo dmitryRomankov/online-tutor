@@ -219,6 +219,7 @@ databaseDescribe('US07 reusable lessons', () => {
       type: 'written_response',
       passage: null,
       choices: [],
+      latest: { versionId: task.versionId, version: 1, title: taskInput.title },
     });
     const otherFormats = [
       {
@@ -257,9 +258,10 @@ databaseDescribe('US07 reusable lessons', () => {
           prompt: input.prompt,
           version: 1,
           ...content,
+          latest: { versionId: published.versionId, version: 1, title: input.title },
         });
     }
-    await api()
+    const { body: latestTask } = await api()
       .put(`/api/tasks/${task.id}`)
       .set('Cookie', tutor.cookie)
       .send({ ...taskInput, prompt: 'New prompt.', expectedVersion: 1 })
@@ -267,9 +269,27 @@ databaseDescribe('US07 reusable lessons', () => {
     await api()
       .get(`/api/lessons/tasks/${task.versionId}`)
       .set('Cookie', tutor.cookie)
-      .expect(200, preview.body);
+      .expect(200, {
+        ...preview.body,
+        latest: { versionId: latestTask.versionId, version: latestTask.version, title: taskInput.title },
+      });
 
-    const reordered = [...items].reverse();
+    await create({ title: 'New', items: [{ kind: 'task', taskVersionId: task.versionId }] }).expect(
+      409
+    );
+    const { body: fresh } = await create({
+      title: 'New',
+      items: [{ kind: 'task', taskVersionId: latestTask.versionId }],
+    }).expect(201);
+    const reordered = [...lesson.items].reverse();
+    const retained = reordered.find((item: LessonItem) => item.kind === 'task');
+    for (const invalid of [[retained, retained], [fresh.items[0]]]) {
+      await api()
+        .put(path)
+        .set('Cookie', tutor.cookie)
+        .send({ title: lesson.title, items: invalid, expectedVersion: 1 })
+        .expect(400);
+    }
     const edit = (cookie = tutor.cookie) =>
       api()
         .put(path)
@@ -279,7 +299,12 @@ databaseDescribe('US07 reusable lessons', () => {
     const results = await Promise.all([edit(), edit()]);
     expect(results.map(({ status }) => status).sort()).toEqual([200, 409]);
     const updated = results.find(({ status }) => status === 200)!.body;
-    expect(updated).toMatchObject({ items: reordered, version: 2 });
+    expect(updated.version).toBe(2);
+    expect(
+      updated.items.map((item: LessonItem) =>
+        item.kind === 'task' ? { kind: item.kind, taskVersionId: item.taskVersionId } : item
+      )
+    ).toEqual([...items].reverse());
     await api().get(path).set('Cookie', tutor.cookie).expect(200, updated);
     const { rows } = await db.query(
       'SELECT kind_code FROM lesson_items WHERE lesson_version_id=$1 ORDER BY position',
@@ -303,6 +328,7 @@ databaseDescribe('US07 reusable lessons', () => {
       'INSERT INTO tutor_students(tutor_id,student_id) VALUES($1,$2) RETURNING id',
       [tutor.id, student.id]
     );
+    const other = await register('TUTOR');
     async function writeInSession(text: string) {
       const {
         rows: [session],
@@ -310,7 +336,14 @@ databaseDescribe('US07 reusable lessons', () => {
         'INSERT INTO sessions(tutor_student_id,planned_lesson_id,scheduled_start,duration_minutes) VALUES($1,$2,now(),60) RETURNING id',
         [link.id, lesson.id]
       );
-      await db.query('SELECT public.start_session($1)', [session.id]);
+      const url = `/api/sessions/${session.id}`;
+      await api().get(`${url}/content-version`).set('Cookie', other.cookie).expect(404);
+      await api().post(`${url}/start`).set('Cookie', student.cookie).expect(403);
+      await api().post(`${url}/start`).set('Cookie', other.cookie).expect(404);
+      const start = () => api().post(`${url}/start`).set('Cookie', tutor.cookie).expect(200);
+      const [first, duplicate] = await Promise.all([start(), start()]);
+      expect(first.body).toEqual(duplicate.body);
+      expect(first.body).toMatchObject({ state: 'active', version: { id: lesson.versionId } });
       const {
         rows: [item],
       } = await db.query(
@@ -336,6 +369,22 @@ databaseDescribe('US07 reusable lessons', () => {
     }
     const first = await writeInSession('First answer');
     const second = await writeInSession('Second answer');
+    await api()
+      .put(`/api/lessons/${lesson.id}`)
+      .set('Cookie', tutor.cookie)
+      .send({ title: 'Edited later', items: lesson.items, expectedVersion: 1 })
+      .expect(200);
+    for (const session of [first, second]) {
+      await api()
+        .get(`/api/sessions/${session.id}/content-version`)
+        .set('Cookie', tutor.cookie)
+        .expect(200, {
+          id: session.id,
+          state: 'ended',
+          version: { id: lesson.versionId, number: 1, title: 'Reflection', activityCount: 1 },
+        });
+      await api().post(`/api/sessions/${session.id}/start`).set('Cookie', tutor.cookie).expect(409);
+    }
     const { rows } = await db.query(
       `SELECT si.session_id,c.lesson_version_id,lr.text_value
        FROM latest_responses lr JOIN session_items si ON si.id=lr.session_item_id
@@ -350,5 +399,129 @@ databaseDescribe('US07 reusable lessons', () => {
         text_value: text,
       });
     }
+  });
+  it('waits for concurrent publication before pinning and preserves old homework task references', async () => {
+    const tutor = await register('TUTOR');
+    const student = await register('STUDENT');
+    const task = await createTask(tutor.cookie);
+    const { body: lesson } = await api()
+      .post('/api/lessons')
+      .set('Cookie', tutor.cookie)
+      .send({ title: 'Before publication', items: [{ kind: 'text', text: 'Before' }] })
+      .expect(201);
+    const {
+      rows: [link],
+    } = await db.query(
+      'INSERT INTO tutor_students(tutor_id,student_id) VALUES($1,$2) RETURNING id',
+      [tutor.id, student.id]
+    );
+    const {
+      rows: [session],
+    } = await db.query(
+      'INSERT INTO sessions(tutor_student_id,planned_lesson_id,scheduled_start,duration_minutes) VALUES($1,$2,now(),60) RETURNING id',
+      [link.id, lesson.id]
+    );
+    const path = `/api/sessions/${session.id}`;
+    await api()
+      .get(`${path}/content-version`)
+      .set('Cookie', tutor.cookie)
+      .expect(200, {
+        id: session.id,
+        state: 'scheduled',
+        version: { id: lesson.versionId, number: 1, title: lesson.title, activityCount: 1 },
+      });
+
+    async function assign(version: string) {
+      const {
+        rows: [assignment],
+      } = await db.query(
+        "INSERT INTO homework_assignments(tutor_student_id,title) VALUES($1,'Practice') RETURNING id",
+        [link.id]
+      );
+      await db.query(
+        'INSERT INTO homework_items(assignment_id,position,task_version_id) VALUES($1,1,$2)',
+        [assignment.id, version]
+      );
+      await db.query('INSERT INTO homework_revisions(assignment_id,revision_no) VALUES($1,1)', [
+        assignment.id,
+      ]);
+      return assignment.id;
+    }
+    const oldAssignment = await assign(task.versionId);
+    const { body: updatedTask } = await api()
+      .put(`/api/tasks/${task.id}`)
+      .set('Cookie', tutor.cookie)
+      .send({ ...taskInput, prompt: 'Updated prompt', expectedVersion: 1 })
+      .expect(200);
+    const newAssignment = await assign(updatedTask.versionId);
+    for (const [id, versionId] of [
+      [oldAssignment, task.versionId],
+      [newAssignment, updatedTask.versionId],
+    ]) {
+      const { rows } = await db.query(
+        'SELECT task_version_id FROM homework_items WHERE assignment_id=$1',
+        [id]
+      );
+      expect(rows).toEqual([{ task_version_id: versionId }]);
+    }
+
+    await db.query('BEGIN');
+    let start: Promise<request.Response> | undefined;
+    let publishedId: string | undefined;
+    try {
+      await db.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [tutor.id]);
+      await db.query('SELECT id FROM lessons WHERE id=$1 FOR UPDATE', [lesson.id]);
+      const {
+        rows: [prepared],
+      } = await db.query(
+        "INSERT INTO lesson_versions(lesson_id,version_no,title) VALUES($1,2,'After publication') RETURNING id",
+        [lesson.id]
+      );
+      publishedId = prepared.id;
+      await db.query(
+        "INSERT INTO lesson_items(lesson_version_id,position,kind_code,text_content) VALUES($1,1,'text','After')",
+        [publishedId]
+      );
+      await db.query('UPDATE lesson_versions SET published_at=now() WHERE id=$1', [publishedId]);
+      start = api()
+        .post(`${path}/start`)
+        .set('Cookie', tutor.cookie)
+        .then((result) => result);
+      let waiting = false;
+      for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
+        await db.query('SELECT pg_stat_clear_snapshot()');
+        const {
+          rows: [activity],
+        } = await db.query(
+          "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pg_backend_pid()=ANY(pg_blocking_pids(pid))) AS waiting"
+        );
+        waiting = activity.waiting;
+        if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(waiting).toBe(true);
+    } finally {
+      await db.query('COMMIT');
+      await start;
+    }
+    expect(await start).toMatchObject({
+      status: 200,
+      body: { state: 'active', version: { id: publishedId, number: 2 } },
+    });
+    await api()
+      .put(`/api/lessons/${lesson.id}`)
+      .set('Cookie', tutor.cookie)
+      .send({ title: 'After Start', items: [{ kind: 'text', text: 'Edited' }], expectedVersion: 2 })
+      .expect(200);
+    const after = await api()
+      .get(`${path}/content-version`)
+      .set('Cookie', tutor.cookie)
+      .expect(200);
+    expect(after.body).toEqual((await start)?.body);
+    await expect(
+      db.query('UPDATE homework_items SET task_version_id=$1 WHERE assignment_id=$2', [
+        updatedTask.versionId,
+        oldAssignment,
+      ])
+    ).rejects.toMatchObject({ code: '23514' });
   });
 });

@@ -5,6 +5,8 @@ import { APP_FILTER } from '@nestjs/core';
 import type { Response } from 'express';
 import { LessonImages, LessonImageStorage } from './application/lesson-images.js';
 import { LessonError, Lessons } from './application/lessons.js';
+import { SessionVersions } from './application/session-versions.js';
+import { SessionVersionsController } from './http/session-versions.controller.js';
 import { LessonsController } from './http/lessons.controller.js';
 import { PostgresLessons } from './infrastructure/postgres-lessons.js';
 import { LessonImageInspector, VercelLessonImages } from './infrastructure/vercel-lesson-images.js';
@@ -16,6 +18,8 @@ const errors = {
   image_too_large: [413, 'Upload an image up to 2 MB.'],
   not_found: [404, 'Lesson content not found.'],
   version_conflict: [409, 'A newer version of this lesson was saved.'],
+  task_version_conflict: [409, 'An attached task changed. Review the latest version.'],
+  session_conflict: [409, 'This session cannot be started.'],
   unavailable: [503, 'Lesson storage is temporarily unavailable.'],
 } as const;
 
@@ -32,7 +36,7 @@ class LessonErrorFilter implements ExceptionFilter<LessonError> {
 }
 
 @Module({
-  controllers: [LessonsController],
+  controllers: [LessonsController, SessionVersionsController],
   providers: [
     {
       provide: PostgresLessons,
@@ -51,6 +55,11 @@ class LessonErrorFilter implements ExceptionFilter<LessonError> {
       useFactory: (repository: PostgresLessons, storage: LessonImageStorage) =>
         new LessonImages(repository, storage, new LessonImageInspector()),
       inject: [PostgresLessons, LessonImageStorage],
+    },
+    {
+      provide: SessionVersions,
+      useFactory: (repository: PostgresLessons) => new SessionVersions(repository),
+      inject: [PostgresLessons],
     },
     { provide: APP_FILTER, useClass: LessonErrorFilter },
   ],

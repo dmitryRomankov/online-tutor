@@ -19,7 +19,11 @@ const lessonItem = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('text'), text: z.string().trim().min(1).max(5000) }),
   z.strictObject({ kind: z.literal('link'), url: httpsLink }),
   z.strictObject({ kind: z.literal('image'), assetId: z.uuid() }),
-  z.strictObject({ kind: z.literal('task'), taskVersionId: z.uuid() }),
+  z.strictObject({
+    kind: z.literal('task'),
+    taskVersionId: z.uuid(),
+    retainedItemId: z.uuid().optional(),
+  }),
 ]);
 const lessonInput = z.strictObject({
   title: z.string().trim().min(1).max(200),
@@ -39,6 +43,7 @@ export interface TaskPreview {
   prompt: string;
   passage: string | null;
   choices: string[];
+  latest: { versionId: string; version: number; title: string } | null;
 }
 
 export interface LessonRepository {
@@ -57,6 +62,8 @@ export class LessonError extends Error {
       | 'image_too_large'
       | 'not_found'
       | 'version_conflict'
+      | 'task_version_conflict'
+      | 'session_conflict'
       | 'unavailable'
   ) {
     super(code);

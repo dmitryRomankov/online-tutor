@@ -69,7 +69,13 @@ export function LessonBlockEditor({ editor, index }: LessonBlockEditorType) {
     case 'task': {
       const error = editor.fieldError(`items.${index}.taskVersionId`)?.message;
       return (
-        <TaskPicker editor={editor} index={index} versionId={item.taskVersionId} error={error} />
+        <TaskPicker
+          editor={editor}
+          index={index}
+          versionId={item.taskVersionId}
+          retained={!!item.retainedItemId}
+          error={error}
+        />
       );
     }
   }
@@ -132,11 +138,13 @@ function TaskPicker({
   editor,
   index,
   versionId,
+  retained,
   error,
 }: {
   editor: Editor;
   index: number;
   versionId: string;
+  retained: boolean;
   error?: string;
 }) {
   const { user } = useAuth();
@@ -177,6 +185,7 @@ function TaskPicker({
           aria-describedby={error ? `${id}-error` : undefined}
           value={versionId}
           {...editor.register(`items.${index}.taskVersionId`)}
+          onChange={(event) => editor.chooseTask(index, event.target.value)}
         >
           <NativeSelectOption value="">
             {tasks.isPending ? 'Loading tasks…' : 'Choose a task'}
@@ -205,7 +214,14 @@ function TaskPicker({
           </Button>
         </div>
       )}
-      {versionId && <LessonTask versionId={versionId} compact />}
+      {versionId && (
+        <LessonTask
+          key={versionId}
+          versionId={versionId}
+          compact
+          attachment={{ retained, onReplace: (latestId) => editor.chooseTask(index, latestId) }}
+        />
+      )}
     </div>
   );
 }

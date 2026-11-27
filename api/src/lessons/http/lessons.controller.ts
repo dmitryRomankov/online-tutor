@@ -64,6 +64,12 @@ const blockSchema: ApiPropertyOptions = {
         properties: {
           kind: { type: 'string', enum: ['task'] },
           taskVersionId: { type: 'string', format: 'uuid' },
+          retainedItemId: {
+            type: 'string',
+            format: 'uuid',
+            description:
+              'Task block ID from the current lesson version. Omit for a new attachment.',
+          },
         },
       },
     ],
@@ -90,6 +96,12 @@ class LessonResponse extends LessonSummaryResponse {
   @ApiProperty(blockSchema) items!: unknown[];
 }
 
+class LatestTaskResponse {
+  @ApiProperty({ format: 'uuid' }) versionId!: string;
+  @ApiProperty({ type: 'integer', minimum: 1 }) version!: number;
+  @ApiProperty() title!: string;
+}
+
 class TaskPreviewResponse {
   @ApiProperty() title!: string;
   @ApiProperty({ type: 'integer', minimum: 1 }) version!: number;
@@ -97,6 +109,7 @@ class TaskPreviewResponse {
   @ApiProperty() prompt!: string;
   @ApiProperty({ type: 'string', nullable: true }) passage!: string | null;
   @ApiProperty({ type: [String] }) choices!: string[];
+  @ApiProperty({ type: LatestTaskResponse, nullable: true }) latest!: LatestTaskResponse | null;
 }
 
 class ImageResponse {
@@ -203,6 +216,10 @@ export class LessonsController {
   @Header('Cache-Control', 'no-store')
   @ApiBody({ type: LessonBody })
   @ApiResponse({ status: 201, type: LessonResponse })
+  @apiError(409, 'Selected task version changed.', {
+    code: 'task_version_conflict',
+    message: 'An attached task changed. Review the latest version.',
+  })
   @invalid
   create(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
     return this.lessons.create(request.user, body);
@@ -212,10 +229,18 @@ export class LessonsController {
   @Header('Cache-Control', 'no-store')
   @ApiBody({ type: EditLessonBody })
   @ApiResponse({ status: 200, type: LessonResponse })
-  @apiError(409, 'Lesson version changed.', {
-    code: 'version_conflict',
-    message: 'A newer version of this lesson was saved.',
-  })
+  @apiError(
+    409,
+    'Lesson version changed.',
+    {
+      code: 'version_conflict',
+      message: 'A newer version of this lesson was saved.',
+    },
+    {
+      code: 'task_version_conflict',
+      message: 'An attached task changed. Review the latest version.',
+    }
+  )
   @invalid
   @notFound
   edit(

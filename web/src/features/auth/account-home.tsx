@@ -27,7 +27,7 @@ export function AccountHome({
   children,
 }: {
   role: ProfileRole;
-  view?: 'dashboard' | 'students' | 'tasks' | 'lessons';
+  view?: 'dashboard' | 'students' | 'tasks' | 'lessons' | 'session';
   children?: React.ReactNode;
 }) {
   const auth = useAuth();
@@ -84,16 +84,17 @@ export function AccountHome({
 
   const isTutor = role === 'TUTOR';
   const profile = isTutor ? 'Tutor' : 'Student';
-  const hasLibrary = view === 'tasks' || view === 'lessons';
+  const hasCustomView = view === 'tasks' || view === 'lessons' || view === 'session';
   const viewTitle = {
     dashboard: 'Dashboard',
     students: 'Students',
     tasks: 'Task library',
     lessons: 'Lesson library',
+    session: 'Classroom preparation',
   }[view];
   return (
     <main
-      className={`${styles.sheet} flex overflow-hidden ${hasLibrary ? 'bg-background' : 'bg-card'}`}
+      className={`${styles.sheet} flex overflow-hidden ${hasCustomView ? 'bg-background' : 'bg-card'}`}
     >
       <aside className={`account-sidebar ${styles.sidebar} flex flex-col phone:hidden`}>
         <Link className={`${authStyles.brand} px-2`} href={dashboardPath(role)}>
@@ -177,7 +178,7 @@ export function AccountHome({
                 aria-label="Account menu"
               >
                 <span className="truncate">
-                  {hasLibrary ? 'Menu' : `${auth.user.name} ${auth.user.lastname}`}
+                  {hasCustomView ? 'Menu' : `${auth.user.name} ${auth.user.lastname}`}
                 </span>
                 <ChevronDown size={15} />
               </Button>
@@ -209,7 +210,7 @@ export function AccountHome({
           </DropdownMenu>
         </header>
         <section className="p-6 phone:p-4">
-          {!hasLibrary && (
+          {!hasCustomView && (
             <>
               <h1 className={authStyles.heading}>{viewTitle}</h1>
               <p className={authStyles.description}>{profile} workspace</p>
@@ -236,7 +237,7 @@ export function AccountHome({
               </p>
             </div>
           )}
-          {hasLibrary ? (
+          {hasCustomView ? (
             children
           ) : (
             <ConnectionsPanel key={`${auth.user.id}:${view}`} manage={view === 'students'} />

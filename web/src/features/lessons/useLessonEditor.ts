@@ -5,7 +5,7 @@ import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import type { FieldPath } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/features/auth/auth-provider';
-import { lessonErrorMessage, lessonInputSchema, lessonsApi } from './api';
+import { LessonApiError, lessonErrorMessage, lessonInputSchema, lessonsApi } from './api';
 import type { Lesson, LessonInput, LessonItem } from './api';
 import { useLessonSession } from './useLessonSession';
 
@@ -33,6 +33,12 @@ export function useLessonEditor(lesson?: Lesson) {
   const save = useMutation({
     mutationFn: (input: LessonInput) => lessonsApi.save(input, previous),
     retry: false,
+    onError: (error) => {
+      if (error instanceof LessonApiError && error.code === 'task_version_conflict') {
+        void client.invalidateQueries({ queryKey: ['tasks', user?.id] });
+        void client.invalidateQueries({ queryKey: ['lessons', user?.id, 'task'] });
+      }
+    },
     onSuccess: (updated) => {
       client.setQueryData(['lessons', user?.id, updated.id], updated);
       void client.invalidateQueries({ queryKey: ['lessons', user?.id], exact: true });
@@ -72,6 +78,13 @@ export function useLessonEditor(lesson?: Lesson) {
     remove: (index: number) => {
       upload.reset();
       blocks.remove(index);
+    },
+    chooseTask: (index: number, versionId: string) => {
+      form.setValue(`items.${index}.retainedItemId`, undefined, { shouldDirty: true });
+      form.setValue(`items.${index}.taskVersionId`, versionId, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     },
     previousVersion: previous?.version,
     onSubmit: form.handleSubmit((input) => save.mutateAsync(input).catch(() => {})),

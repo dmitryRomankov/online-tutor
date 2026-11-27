@@ -19,6 +19,11 @@ describe('US07 reusable lesson builder', () => {
     { kind: 'task', taskVersionId },
     { kind: 'link', url },
   ];
+  const savedItems = original.map((item) =>
+    item.kind === 'task'
+      ? { ...item, retainedItemId: 'c935221f-b6ec-4e81-b5fa-ae523ac25e82' }
+      : item
+  );
   let lesson:
     | { id: string; versionId: string; version: number; title: string; items: typeof original }
     | undefined;
@@ -65,6 +70,7 @@ describe('US07 reusable lesson builder', () => {
         prompt: 'How was your weekend?',
         passage: null,
         choices: [],
+        latest: { title: 'Weekend reflection', version: 2, versionId: taskVersionId },
       },
     });
     cy.intercept('POST', '**/api/lessons/images', (req) => {
@@ -97,12 +103,12 @@ describe('US07 reusable lesson builder', () => {
         version: 1,
         versionId: '4244c58b-a1b7-43dc-865d-c58a54f6f244',
         title,
-        items: original,
+        items: savedItems,
       };
       req.reply({ statusCode: 201, body: lesson });
     }).as('createLesson');
     cy.intercept('PUT', `**/api/lessons/${lessonId}`, (req) => {
-      const items = [original[0], original[2], original[3]];
+      const items = [savedItems[0], savedItems[2], savedItems[3]];
       expect(req.body).to.deep.equal({ title: 'Updated lesson', items, expectedVersion: 1 });
       lesson = {
         id: lessonId,

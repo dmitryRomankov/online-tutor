@@ -41,12 +41,15 @@ export function LessonImage({ assetId }: { assetId: string }) {
 export function LessonTask({
   versionId,
   compact = false,
+  attachment,
 }: {
   versionId: string;
   compact?: boolean;
+  attachment?: { retained: boolean; onReplace: (id: string) => void };
 }) {
   const { user } = useAuth();
   const answerGroup = useId();
+  const [reviewing, setReviewing] = useState(false);
   const { data, error, isPending, refetch } = useQuery({
     queryKey: ['lessons', user?.id, 'task', versionId],
     queryFn: ({ signal }) => lessonsApi.taskPreview(versionId, signal),
@@ -83,6 +86,61 @@ export function LessonTask({
           {format} · Task v{data.version}
         </p>
       </div>
+      {attachment &&
+        (reviewing ? (
+          <section
+            aria-label="Content versions"
+            className="space-y-3 rounded-xl border border-border bg-background p-4"
+          >
+            <h4 className="font-semibold">Content versions</h4>
+            <p className="text-sm">
+              {attachment.retained ? 'Attached' : 'Selected'} v{data.version} · {data.title}
+            </p>
+            <p className="text-sm">
+              {data.latest
+                ? `Latest v${data.latest.version} · ${data.latest.title}`
+                : 'Task unavailable in the library.'}
+            </p>
+            {attachment.retained && (
+              <p className="text-sm text-muted-foreground">
+                Existing attachments keep their version when the library task changes.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2 phone:flex-col">
+              {data.latest && data.latest.versionId !== versionId && (
+                <Button
+                  type="button"
+                  className="min-h-11"
+                  onClick={() => {
+                    if (data.latest) attachment.onReplace(data.latest.versionId);
+                  }}
+                >
+                  Use latest version
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => setReviewing(false)}
+              >
+                Back to lesson
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={() => {
+              setReviewing(true);
+              void refetch();
+            }}
+          >
+            Review attachment
+          </Button>
+        ))}
       {!compact && (
         <fieldset className="min-w-0 space-y-2">
           <legend className="mb-2 whitespace-pre-wrap">{data.prompt}</legend>

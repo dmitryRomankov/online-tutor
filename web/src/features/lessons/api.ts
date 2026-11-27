@@ -19,7 +19,11 @@ const block = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('text'), text: z.string().trim().min(1, 'Enter text.').max(5000) }),
   z.object({ kind: z.literal('link'), url: link }),
   z.object({ kind: z.literal('image'), assetId: z.uuid('Upload an image for this block.') }),
-  z.object({ kind: z.literal('task'), taskVersionId: z.uuid('Choose a task.') }),
+  z.object({
+    kind: z.literal('task'),
+    taskVersionId: z.uuid('Choose a task.'),
+    retainedItemId: z.uuid().optional(),
+  }),
 ]);
 
 export const lessonInputSchema = z.object({
@@ -41,6 +45,9 @@ const taskPreview = z.object({
   prompt: z.string(),
   passage: z.string().nullable(),
   choices: z.array(z.string()),
+  latest: z
+    .object({ versionId: z.uuid(), version: z.number().int().positive(), title: z.string() })
+    .nullable(),
 });
 
 export type Lesson = z.infer<typeof lesson>;
@@ -51,14 +58,15 @@ export const maxImageBytes = 2 * 1024 * 1024;
 export class LessonApiError extends Error {
   constructor(
     readonly status: number,
-    message?: string
+    message?: string,
+    readonly code?: string
   ) {
     super(message ?? 'The request could not be completed. Please try again.');
   }
 }
 
-async function request(path = '', options: RequestInit = {}) {
-  const response = await fetch(`${apiUrl}/lessons${path}`, {
+async function request(path: string, options: RequestInit = {}) {
+  const response = await fetch(`${apiUrl}${path}`, {
     credentials: 'include',
     cache: 'no-store',
     ...options,
@@ -74,11 +82,16 @@ async function request(path = '', options: RequestInit = {}) {
       503: 'Lesson storage is temporarily unavailable. Please try again.',
     };
     const payload = await response.json().catch(() => null);
-    const message =
-      payload?.code === 'invalid_image'
-        ? 'Upload a valid PNG, JPEG or WebP image up to 2 MB.'
-        : messages[response.status];
-    throw new LessonApiError(response.status, message);
+    const specific: Record<string, string> = {
+      invalid_image: 'Upload a valid PNG, JPEG or WebP image up to 2 MB.',
+      task_version_conflict: 'A task changed. Review the latest version below before saving.',
+      session_conflict: 'This session cannot be started.',
+    };
+    throw new LessonApiError(
+      response.status,
+      specific[payload?.code] ?? messages[response.status],
+      payload?.code
+    );
   }
   return response;
 }
@@ -93,15 +106,17 @@ export function lessonErrorMessage(error: unknown) {
 
 export const lessonsApi = {
   list: async (signal?: AbortSignal) =>
-    z.array(summary).parse(await (await request('', { signal })).json()),
+    z.array(summary).parse(await (await request('/lessons', { signal })).json()),
   get: async (id: string, signal?: AbortSignal) =>
-    lesson.parse(await (await request(`/${encodeURIComponent(id)}`, { signal })).json()),
+    lesson.parse(await (await request(`/lessons/${encodeURIComponent(id)}`, { signal })).json()),
   taskPreview: async (id: string, signal?: AbortSignal) =>
-    taskPreview.parse(await (await request(`/tasks/${encodeURIComponent(id)}`, { signal })).json()),
+    taskPreview.parse(
+      await (await request(`/lessons/tasks/${encodeURIComponent(id)}`, { signal })).json()
+    ),
   save: async (input: LessonInput, previous?: Lesson) =>
     lesson.parse(
       await (
-        await request(previous ? `/${previous.id}` : '', {
+        await request(previous ? `/lessons/${previous.id}` : '/lessons', {
           method: previous ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(previous ? { ...input, expectedVersion: previous.version } : input),
@@ -115,6 +130,32 @@ export const lessonsApi = {
     data.append('file', file);
     return z
       .object({ id: z.uuid() })
-      .parse(await (await request('/images', { method: 'POST', body: data })).json());
+      .parse(await (await request('/lessons/images', { method: 'POST', body: data })).json());
   },
+};
+
+const sessionVersion = z.object({
+  id: z.uuid(),
+  state: z.enum(['scheduled', 'active', 'ended', 'cancelled']),
+  version: z
+    .object({
+      id: z.uuid(),
+      number: z.number().int().positive(),
+      title: z.string(),
+      activityCount: z.number().int().positive(),
+    })
+    .nullable(),
+});
+
+export const sessionVersionsApi = {
+  get: async (id: string, signal?: AbortSignal) =>
+    sessionVersion.parse(
+      await (
+        await request(`/sessions/${encodeURIComponent(id)}/content-version`, { signal })
+      ).json()
+    ),
+  start: async (id: string) =>
+    sessionVersion.parse(
+      await (await request(`/sessions/${encodeURIComponent(id)}/start`, { method: 'POST' })).json()
+    ),
 };

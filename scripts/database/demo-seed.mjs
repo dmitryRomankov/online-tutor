@@ -198,6 +198,7 @@ export async function seedDemo(c, password) {
       tutor: tutor.id,
       student: student.id,
       session: sessions[1].id,
+      scheduledSession: sessions[2].id,
       sessionItem: si.id,
       homework: hr.id,
     };
@@ -209,8 +210,9 @@ if (isMain(import.meta.url)) {
     throw new Error('Demo seed requires a database name ending in _demo or _test');
   const c = await connect(url);
   try {
-    await seedDemo(c, process.env.DEMO_PASSWORD);
+    const { scheduledSession } = await seedDemo(c, process.env.DEMO_PASSWORD);
     console.log('Synthetic demo data ready.');
+    console.log(`Tutor classroom preparation: /tutor/sessions/${scheduledSession}`);
   } finally {
     await c.end();
   }
