@@ -1,3 +1,5 @@
+import { stubEmptySchedule } from '../support/schedule';
+
 describe('US07 reusable lesson builder', () => {
   const tutor = {
     id: 'tutor',
@@ -32,6 +34,7 @@ describe('US07 reusable lesson builder', () => {
     lesson = undefined;
     let failUpload = true;
     let failCreate = true;
+    stubEmptySchedule();
     cy.intercept('GET', '**/api/auth/me', { body: { user: tutor } });
     cy.intercept('GET', '**/api/connections', { body: [] });
     cy.intercept('GET', '**/api/lessons', (req) => {

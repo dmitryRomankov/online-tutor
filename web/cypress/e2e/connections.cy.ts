@@ -1,3 +1,5 @@
+import { stubEmptySchedule } from '../support/schedule';
+
 describe('US03 tutor invitations', () => {
   const token = 'a'.repeat(64);
   const tutor = {
@@ -28,6 +30,7 @@ describe('US03 tutor invitations', () => {
     current = null;
     connected = false;
     invites = [];
+    stubEmptySchedule();
     cy.intercept('GET', '**/api/auth/me', (req) =>
       req.reply(current ? { body: { user: current } } : { statusCode: 401 })
     );

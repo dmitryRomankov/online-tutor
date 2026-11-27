@@ -1,3 +1,5 @@
+import { stubEmptySchedule } from '../support/schedule';
+
 describe('US01 / US02 frontend', () => {
   let current: { id: string; email: string; name: string; lastname: string; role: string } | null;
   const student = {
@@ -11,6 +13,7 @@ describe('US01 / US02 frontend', () => {
 
   beforeEach(() => {
     current = null;
+    stubEmptySchedule();
     cy.intercept('GET', '**/api/connections', { body: [] });
     cy.intercept('GET', '**/api/auth/me', (request) => {
       request.reply(current ? { statusCode: 200, body: { user: current } } : { statusCode: 401 });

@@ -1,3 +1,5 @@
+import { stubEmptySchedule } from '../support/schedule';
+
 describe('US04 single-choice task library and editor', () => {
   const id = '9005c818-b501-43e4-a55b-da483295cb0f';
   const tutor = {
@@ -24,6 +26,7 @@ describe('US04 single-choice task library and editor', () => {
   beforeEach(() => {
     saved = undefined;
     failCreate = true;
+    stubEmptySchedule();
     cy.intercept('GET', '**/api/auth/me', { body: { user: tutor } });
     cy.intercept('GET', '**/api/connections', { body: [] });
     cy.intercept('GET', '**/api/tasks', (req) => {
