@@ -20,7 +20,7 @@ export function useConnections(manage = false) {
     queryFn: ({ signal }) => connectionsApi.list(signal),
     enabled: Boolean(user),
     retry: false,
-    refetchInterval: 15_000,
+    refetchInterval: 60_000,
   });
 
   const invitations = useQuery({
@@ -28,7 +28,7 @@ export function useConnections(manage = false) {
     queryFn: ({ signal }) => connectionsApi.invitations(signal),
     enabled: Boolean(user?.role === 'TUTOR' && manage),
     retry: false,
-    refetchInterval: 15_000,
+    refetchInterval: 60_000,
   });
 
   const create = useMutation({

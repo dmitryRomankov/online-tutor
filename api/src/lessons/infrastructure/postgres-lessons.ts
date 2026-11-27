@@ -1,5 +1,4 @@
-import { Pool } from 'pg';
-import type { PoolClient } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { SessionVersion, SessionVersionsRepository } from '../application/session-versions.js';
 import { LessonError } from '../application/lessons.js';
 import type {
@@ -46,18 +45,7 @@ function toItem(row: ItemRow): LessonItem {
 export class PostgresLessons
   implements LessonRepository, LessonImageRepository, SessionVersionsRepository
 {
-  private readonly pool?: Pool;
-
-  constructor(url?: string) {
-    if (url) {
-      this.pool = new Pool({ connectionString: url, max: 5, connectionTimeoutMillis: 10_000 });
-      this.pool.on('error', () => {});
-    }
-  }
-
-  async onModuleDestroy() {
-    await this.pool?.end();
-  }
+  constructor(private readonly pool?: Pool) {}
 
   list(ownerId: string) {
     return this.run(

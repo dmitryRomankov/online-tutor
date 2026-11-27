@@ -40,24 +40,28 @@ export function LessonLibrary() {
           <Link href="/tutor/lessons/new">Create lesson</Link>
         </Button>
       </div>
-      <Field className="max-w-sm phone:max-w-none">
-        <FieldLabel htmlFor="search-lessons">Search lessons</FieldLabel>
-        <Input
-          type="search"
-          id="search-lessons"
-          className="min-h-11 bg-card"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </Field>
-      <section
-        className="rounded-2xl border border-border bg-card p-5"
-        aria-labelledby="your-lessons"
-      >
+      <div className="grid gap-4 sm:max-w-2xl sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="search-lessons">Search lessons</FieldLabel>
+          <Input
+            id="search-lessons"
+            className="min-h-11 bg-card"
+            placeholder="Start typing to search lessons"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </Field>
+      </div>
+      <section aria-labelledby="your-lessons">
         <h2 id="your-lessons" className="m-0 text-base font-semibold">
           Your lessons
         </h2>
-        {lessons.isPending && <p role="status">Loading lessons…</p>}
+        {lessons.isPending && (
+          <p className="mt-3 text-sm" role="status">
+            Loading lessons…
+          </p>
+        )}
         {lessons.isError && (
           <div className="mt-3 space-y-2">
             <p role="alert" className="text-sm text-destructive">
@@ -74,24 +78,21 @@ export function LessonLibrary() {
           </p>
         )}
         {!!matching?.length && (
-          <ul className="mt-2 divide-y divide-border">
+          <ul className="mt-2 w-full">
             {matching.map((item) => (
-              <li
-                key={item.id}
-                className="flex flex-wrap items-center justify-between gap-x-4 py-3 phone:block"
-              >
-                <div className="min-w-0 wrap-anywhere">
+              <li key={item.id} className="py-3">
+                <div className="w-full wrap-anywhere rounded-2xl border border-border bg-card p-5">
                   <h3 className="font-medium">{item.title}</h3>
                   <p className="text-sm text-muted-foreground">Lesson v{item.version}</p>
+                  <Button variant="link" className="min-h-11 px-0" asChild>
+                    <Link
+                      href={`/tutor/lessons/${item.id}`}
+                      aria-label={`Edit lesson: ${item.title}`}
+                    >
+                      Edit lesson
+                    </Link>
+                  </Button>
                 </div>
-                <Button variant="link" className="min-h-11 px-0" asChild>
-                  <Link
-                    href={`/tutor/lessons/${item.id}`}
-                    aria-label={`Edit lesson: ${item.title}`}
-                  >
-                    Edit lesson
-                  </Link>
-                </Button>
               </li>
             ))}
           </ul>

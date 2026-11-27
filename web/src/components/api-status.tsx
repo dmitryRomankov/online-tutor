@@ -7,7 +7,6 @@ export function ApiStatus() {
   const health = useQuery({
     queryKey: ['api-health'],
     queryFn: ({ signal }) => getApiHealth(signal),
-    refetchInterval: 30_000,
   });
   const connected = health.data?.status === 'ok' && !health.isError;
   const label = connected

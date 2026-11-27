@@ -8,6 +8,8 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.js';
 import { LessonImageStorage, maxImageBytes } from '../src/lessons/application/lesson-images.js';
+import { Schedule } from '../src/lessons/application/schedule.js';
+import { PostgresSchedule } from '../src/lessons/infrastructure/postgres-schedule.js';
 import type { LessonItem } from '../src/lessons/application/lessons.js';
 
 class MemoryImages implements LessonImageStorage {
@@ -271,7 +273,11 @@ databaseDescribe('US07 reusable lessons', () => {
       .set('Cookie', tutor.cookie)
       .expect(200, {
         ...preview.body,
-        latest: { versionId: latestTask.versionId, version: latestTask.version, title: taskInput.title },
+        latest: {
+          versionId: latestTask.versionId,
+          version: latestTask.version,
+          title: taskInput.title,
+        },
       });
 
     await create({ title: 'New', items: [{ kind: 'task', taskVersionId: task.versionId }] }).expect(
@@ -493,7 +499,7 @@ databaseDescribe('US07 reusable lessons', () => {
         const {
           rows: [activity],
         } = await db.query(
-          "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pg_backend_pid()=ANY(pg_blocking_pids(pid))) AS waiting"
+          'SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pg_backend_pid()=ANY(pg_blocking_pids(pid))) AS waiting'
         );
         waiting = activity.waiting;
         if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
@@ -523,5 +529,135 @@ databaseDescribe('US07 reusable lessons', () => {
         oldAssignment,
       ])
     ).rejects.toMatchObject({ code: '23514' });
+  });
+  it('schedules once per submission, allows overlaps and scopes student entry', async () => {
+    const tutor = await register('TUTOR');
+    const student = await register('STUDENT');
+    const stranger = await register('STUDENT');
+    const otherTutor = await register('TUTOR');
+    const createLesson = async (cookie: string) =>
+      (
+        await api()
+          .post('/api/lessons')
+          .set('Cookie', cookie)
+          .send({ title: 'Version one', items: [{ kind: 'text', text: 'Practice' }] })
+          .expect(201)
+      ).body;
+    const lesson = await createLesson(tutor.cookie);
+    const foreign = await createLesson(otherTutor.cookie);
+    const {
+      rows: [link],
+    } = await db.query(
+      'INSERT INTO tutor_students(tutor_id,student_id) VALUES($1,$2) RETURNING id',
+      [tutor.id, student.id]
+    );
+    const input = {
+      id: randomUUID(),
+      connectionId: link.id,
+      lessonId: lesson.id,
+      scheduledStart: '2099-11-27T15:00:00+01:00',
+      durationMinutes: 45,
+    };
+    const create = (body = input, cookie = tutor.cookie) =>
+      api().post('/api/sessions').set('Cookie', cookie).send(body);
+    await create(input, student.cookie).expect(403);
+    await create({ ...input, durationMinutes: 0 }).expect(400);
+    await create({ ...input, scheduledStart: '2099-11-27T15:00:00' }).expect(400);
+    await create({ ...input, lessonId: foreign.id }).expect(404);
+    await create(input, otherTutor.cookie).expect(404);
+    const [booked, retry] = await Promise.all([create().expect(201), create().expect(201)]);
+    expect(booked.body).toEqual(retry.body);
+    expect(booked.body).toMatchObject({
+      id: input.id,
+      state: 'scheduled',
+      scheduledStart: '2099-11-27T14:00:00.000Z',
+      canJoin: false,
+    });
+    await create({ ...input, durationMinutes: 60 }).expect(409);
+    const overlap = randomUUID();
+    await create({ ...input, id: overlap }).expect(201);
+    const path = `/api/sessions/${input.id}`;
+    for (const actor of [tutor, student]) {
+      const { body } = await api().get('/api/sessions').set('Cookie', actor.cookie).expect(200);
+      expect(body.sessions.map((row: { id: string }) => row.id).sort()).toEqual(
+        [input.id, overlap].sort()
+      );
+      await api().get(path).set('Cookie', actor.cookie).expect(200);
+    }
+    await api()
+      .get('/api/sessions')
+      .set('Cookie', stranger.cookie)
+      .expect(200)
+      .expect(({ body }) => expect(body.sessions).toEqual([]));
+    await api().get(path).set('Cookie', stranger.cookie).expect(404);
+    await api().get(`${path}/entry`).set('Cookie', stranger.cookie).expect(404);
+    await api()
+      .get(`${path}/entry`)
+      .set('Cookie', student.cookie)
+      .expect(409)
+      .expect(({ body }) => expect(body.code).toBe('schedule_early'));
+    await api().get(`${path}/entry`).set('Cookie', tutor.cookie).expect(403);
+
+    const { rows: notifications } = await db.query(
+      'SELECT session_id FROM lesson_notifications WHERE session_id=ANY($1::uuid[])',
+      [[input.id, overlap]]
+    );
+    expect(notifications.map(({ session_id }) => session_id).sort()).toEqual(
+      [input.id, overlap].sort()
+    );
+    const { rows: pins } = await db.query(
+      'SELECT session_id FROM session_content WHERE session_id=$1',
+      [input.id]
+    );
+    expect(pins).toEqual([]);
+
+    const pool = new pg.Pool({ connectionString: url });
+    try {
+      const actor = {
+        id: student.id,
+        role: 'STUDENT' as const,
+        name: 'Alex',
+        lastname: 'Rivera',
+        email: 'known@example.test',
+      };
+      let now = new Date('2099-11-27T13:59:59.999Z');
+      const schedule = new Schedule(new PostgresSchedule(pool), () => now);
+      await expect(schedule.studentEntry(actor, input.id)).rejects.toMatchObject({
+        code: 'schedule_early',
+      });
+      now = new Date('2099-11-27T14:00:00.000Z');
+      await expect(schedule.studentEntry(actor, input.id)).resolves.toMatchObject({
+        canJoin: true,
+        state: 'scheduled',
+      });
+
+      const { body: edited } = await api()
+        .put(`/api/lessons/${lesson.id}`)
+        .set('Cookie', tutor.cookie)
+        .send({ title: 'Version two', items: lesson.items, expectedVersion: 1 })
+        .expect(200);
+      const { body: started } = await api()
+        .post(`${path}/start`)
+        .set('Cookie', tutor.cookie)
+        .expect(200);
+      expect(started.version.id).toBe(edited.versionId);
+      await expect(schedule.studentEntry(actor, input.id)).resolves.toMatchObject({
+        title: 'Version two',
+        canJoin: true,
+        state: 'active',
+      });
+      await db.query('SELECT public.end_session($1)', [input.id]);
+      await expect(schedule.studentEntry(actor, input.id)).rejects.toMatchObject({
+        code: 'schedule_closed',
+      });
+      await db.query("UPDATE sessions SET state_code='cancelled' WHERE id=$1", [overlap]);
+      await expect(schedule.studentEntry(actor, overlap)).rejects.toMatchObject({
+        code: 'schedule_closed',
+      });
+      await db.query('UPDATE tutor_students SET ended_at=now() WHERE id=$1', [link.id]);
+      await create({ ...input, id: randomUUID() }).expect(404);
+    } finally {
+      await pool.end();
+    }
   });
 });

@@ -27,7 +27,7 @@ export function AccountHome({
   children,
 }: {
   role: ProfileRole;
-  view?: 'dashboard' | 'students' | 'tasks' | 'lessons' | 'session';
+  view?: 'dashboard' | 'students' | 'tasks' | 'lessons' | 'session' | 'schedule';
   children?: React.ReactNode;
 }) {
   const auth = useAuth();
@@ -84,13 +84,15 @@ export function AccountHome({
 
   const isTutor = role === 'TUTOR';
   const profile = isTutor ? 'Tutor' : 'Student';
-  const hasCustomView = view === 'tasks' || view === 'lessons' || view === 'session';
+  const hasCustomView =
+    view === 'tasks' || view === 'lessons' || view === 'session' || view === 'schedule';
   const viewTitle = {
     dashboard: 'Dashboard',
     students: 'Students',
     tasks: 'Task library',
     lessons: 'Lesson library',
-    session: 'Classroom preparation',
+    session: isTutor ? 'Classroom preparation' : 'Session status',
+    schedule: 'Lesson schedule',
   }[view];
   return (
     <main
@@ -237,9 +239,8 @@ export function AccountHome({
               </p>
             </div>
           )}
-          {hasCustomView ? (
-            children
-          ) : (
+          {children}
+          {!hasCustomView && (
             <ConnectionsPanel key={`${auth.user.id}:${view}`} manage={view === 'students'} />
           )}
         </section>

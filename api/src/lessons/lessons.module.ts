@@ -3,6 +3,10 @@ import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
 import type { Response } from 'express';
+import { Pool } from 'pg';
+import { Schedule } from './application/schedule.js';
+import { ScheduleController, ScheduleErrorFilter } from './http/schedule.controller.js';
+import { PostgresSchedule } from './infrastructure/postgres-schedule.js';
 import { LessonImages, LessonImageStorage } from './application/lesson-images.js';
 import { LessonError, Lessons } from './application/lessons.js';
 import { SessionVersions } from './application/session-versions.js';
@@ -35,14 +39,38 @@ class LessonErrorFilter implements ExceptionFilter<LessonError> {
   }
 }
 
+class LessonDatabase {
+  readonly pool?: Pool;
+
+  constructor(url?: string) {
+    if (url) {
+      this.pool = new Pool({ connectionString: url, max: 5, connectionTimeoutMillis: 10_000 });
+      this.pool.on('error', () => {});
+    }
+  }
+
+  async onModuleDestroy() {
+    await this.pool?.end();
+  }
+}
+
 @Module({
-  controllers: [LessonsController, SessionVersionsController],
+  controllers: [LessonsController, SessionVersionsController, ScheduleController],
   providers: [
     {
-      provide: PostgresLessons,
-      useFactory: (config: ConfigService) =>
-        new PostgresLessons(config.get<string>('DATABASE_URL')),
+      provide: LessonDatabase,
+      useFactory: (config: ConfigService) => new LessonDatabase(config.get<string>('DATABASE_URL')),
       inject: [ConfigService],
+    },
+    {
+      provide: PostgresLessons,
+      useFactory: (database: LessonDatabase) => new PostgresLessons(database.pool),
+      inject: [LessonDatabase],
+    },
+    {
+      provide: Schedule,
+      useFactory: (database: LessonDatabase) => new Schedule(new PostgresSchedule(database.pool)),
+      inject: [LessonDatabase],
     },
     { provide: LessonImageStorage, useClass: VercelLessonImages },
     {
@@ -62,6 +90,7 @@ class LessonErrorFilter implements ExceptionFilter<LessonError> {
       inject: [PostgresLessons],
     },
     { provide: APP_FILTER, useClass: LessonErrorFilter },
+    { provide: APP_FILTER, useClass: ScheduleErrorFilter },
   ],
 })
 export class LessonsModule {}
