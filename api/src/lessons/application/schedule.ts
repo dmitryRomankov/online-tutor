@@ -43,8 +43,8 @@ export class ScheduleError extends Error {
 function joinable(booking: Booking, now: Date) {
   return (
     booking.connected &&
-    (booking.state === 'scheduled' || booking.state === 'active') &&
-    Date.parse(booking.scheduledStart) <= now.getTime()
+    (booking.state === 'active' ||
+      (booking.state === 'scheduled' && Date.parse(booking.scheduledStart) <= now.getTime()))
   );
 }
 
@@ -95,9 +95,7 @@ export class Schedule {
     const now = this.now();
     if (!joinable(booking, now)) {
       throw new ScheduleError(
-        booking.connected && (booking.state === 'scheduled' || booking.state === 'active')
-          ? 'schedule_early'
-          : 'schedule_closed'
+        booking.connected && booking.state === 'scheduled' ? 'schedule_early' : 'schedule_closed'
       );
     }
     return summary(booking, now);

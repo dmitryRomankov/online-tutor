@@ -64,6 +64,7 @@ export class LessonError extends Error {
       | 'version_conflict'
       | 'task_version_conflict'
       | 'session_conflict'
+      | 'session_end_conflict'
       | 'unavailable'
   ) {
     super(code);

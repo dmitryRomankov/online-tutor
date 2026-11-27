@@ -319,7 +319,7 @@ databaseDescribe('US07 reusable lessons', () => {
     expect(rows.map(({ kind_code }) => kind_code)).toEqual(items.map(({ kind }) => kind));
   });
 
-  it('reuses a published lesson in two sessions with independent answers', async () => {
+  it('closes two reused sessions through the tutor API and preserves independent answers', async () => {
     const tutor = await register('TUTOR');
     const student = await register('STUDENT');
     const task = await createTask(tutor.cookie);
@@ -339,17 +339,34 @@ databaseDescribe('US07 reusable lessons', () => {
       const {
         rows: [session],
       } = await db.query(
-        'INSERT INTO sessions(tutor_student_id,planned_lesson_id,scheduled_start,duration_minutes) VALUES($1,$2,now(),60) RETURNING id',
+        "INSERT INTO sessions(tutor_student_id,planned_lesson_id,scheduled_start,duration_minutes) VALUES($1,$2,now()-interval '2 hours',60) RETURNING id",
         [link.id, lesson.id]
       );
       const url = `/api/sessions/${session.id}`;
       await api().get(`${url}/content-version`).set('Cookie', other.cookie).expect(404);
       await api().post(`${url}/start`).set('Cookie', student.cookie).expect(403);
       await api().post(`${url}/start`).set('Cookie', other.cookie).expect(404);
+      await api()
+        .post(`${url}/end`)
+        .set('Cookie', tutor.cookie)
+        .expect(409)
+        .expect(({ body }) => expect(body.code).toBe('session_end_conflict'));
+      await api()
+        .get(`${url}/entry`)
+        .set('Cookie', student.cookie)
+        .expect(200)
+        .expect(({ body }) => expect(body.state).toBe('scheduled'));
       const start = () => api().post(`${url}/start`).set('Cookie', tutor.cookie).expect(200);
       const [first, duplicate] = await Promise.all([start(), start()]);
       expect(first.body).toEqual(duplicate.body);
       expect(first.body).toMatchObject({ state: 'active', version: { id: lesson.versionId } });
+      await api()
+        .get(`${url}/entry`)
+        .set('Cookie', student.cookie)
+        .expect(200)
+        .expect(({ body }) => expect(body.state).toBe('active'));
+      await api().post(`${url}/end`).set('Cookie', student.cookie).expect(403);
+      await api().post(`${url}/end`).set('Cookie', other.cookie).expect(404);
       const {
         rows: [item],
       } = await db.query(
@@ -370,7 +387,31 @@ databaseDescribe('US07 reusable lessons', () => {
         'INSERT INTO response_revisions(response_id,revision_no,client_event_id,text_value) VALUES($1,1,$2,$3)',
         [response.id, randomUUID(), text]
       );
-      await db.query('SELECT public.end_session($1)', [session.id]);
+      const end = () => api().post(`${url}/end`).set('Cookie', tutor.cookie).expect(200);
+      const [ended, retried] = await Promise.all([end(), end()]);
+      expect(ended.body).toEqual(retried.body);
+      expect(ended.body).toMatchObject({ state: 'ended', version: { id: lesson.versionId } });
+      await api()
+        .get(`${url}/entry`)
+        .set('Cookie', student.cookie)
+        .expect(409)
+        .expect(({ body }) => expect(body.code).toBe('schedule_closed'));
+      await api()
+        .get(url)
+        .set('Cookie', student.cookie)
+        .expect(200)
+        .expect(({ body }) => expect(body).toMatchObject({ state: 'ended', canJoin: false }));
+      await api().get(url).set('Cookie', other.cookie).expect(404);
+      await expect(
+        db.query(
+          "INSERT INTO response_revisions(response_id,revision_no,client_event_id,text_value) VALUES($1,2,$2,'late')",
+          [response.id, randomUUID()]
+        )
+      ).rejects.toMatchObject({ code: '23514', constraint: 'active_session_required' });
+      const active = await db.query('SELECT 1 FROM session_active_items WHERE session_id=$1', [
+        session.id,
+      ]);
+      expect(active.rowCount).toBe(0);
       return { id: session.id, text };
     }
     const first = await writeInSession('First answer');
@@ -582,6 +623,9 @@ databaseDescribe('US07 reusable lessons', () => {
       expect(body.sessions.map((row: { id: string }) => row.id).sort()).toEqual(
         [input.id, overlap].sort()
       );
+      expect(body.sessions).toContainEqual(
+        expect.objectContaining({ id: input.id, state: 'scheduled', canJoin: false })
+      );
       await api().get(path).set('Cookie', actor.cookie).expect(200);
     }
     await api()
@@ -641,6 +685,20 @@ databaseDescribe('US07 reusable lessons', () => {
         .set('Cookie', tutor.cookie)
         .expect(200);
       expect(started.version.id).toBe(edited.versionId);
+      const { body: dashboard } = await api()
+        .get('/api/sessions')
+        .set('Cookie', student.cookie)
+        .expect(200);
+      expect(Date.parse(dashboard.serverNow)).toBeLessThan(Date.parse(input.scheduledStart));
+      expect(dashboard.sessions).toContainEqual(
+        expect.objectContaining({ id: input.id, state: 'active', canJoin: true })
+      );
+      await api()
+        .get(`${path}/entry`)
+        .set('Cookie', student.cookie)
+        .expect(200)
+        .expect(({ body }) => expect(body).toMatchObject({ state: 'active', canJoin: true }));
+      await api().get(`${path}/entry`).set('Cookie', stranger.cookie).expect(404);
       await expect(schedule.studentEntry(actor, input.id)).resolves.toMatchObject({
         title: 'Version two',
         canJoin: true,
@@ -651,6 +709,7 @@ databaseDescribe('US07 reusable lessons', () => {
         code: 'schedule_closed',
       });
       await db.query("UPDATE sessions SET state_code='cancelled' WHERE id=$1", [overlap]);
+      await api().post(`/api/sessions/${overlap}/end`).set('Cookie', tutor.cookie).expect(409);
       await expect(schedule.studentEntry(actor, overlap)).rejects.toMatchObject({
         code: 'schedule_closed',
       });

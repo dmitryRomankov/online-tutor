@@ -83,7 +83,7 @@ export function ScheduleDashboard({ role }: { role: 'TUTOR' | 'STUDENT' }) {
               <>
                 <p id={`join-${booking.id}`} className="text-sm text-muted-foreground">
                   {booking.canPrepare
-                    ? 'Join becomes available at the scheduled start.'
+                    ? 'Join opens when your tutor starts the lesson or when the scheduled time arrives.'
                     : 'Entry is unavailable.'}
                 </p>
                 <Button
@@ -106,36 +106,59 @@ export function BookingScreen({ id, audience }: { id: string; audience: 'student
   const query = useBooking(id, audience);
   const booking = query.data;
   const isStudent = audience === 'student';
+  const title = !isStudent
+    ? 'Scheduled session'
+    : booking?.state === 'scheduled'
+      ? 'Waiting room'
+      : booking?.state === 'active'
+        ? 'Active classroom'
+        : booking?.state === 'ended'
+          ? 'Session record'
+          : 'Session status';
+  const status =
+    booking &&
+    (isStudent
+      ? {
+          scheduled: 'Waiting for your tutor',
+          active: 'Your tutor is choosing an activity',
+          ended: 'Lesson ended',
+          cancelled: 'Cancelled',
+        }[booking.state]
+      : {
+          scheduled: 'Booking confirmed',
+          active: 'In progress',
+          ended: 'Completed',
+          cancelled: 'Cancelled',
+        }[booking.state]);
   return (
     <section className="mx-auto max-w-3xl space-y-5">
       <Button asChild variant="link" className="min-h-11 px-0">
         <Link href={isStudent ? '/student' : '/tutor'}>Back to dashboard</Link>
       </Button>
-      <h1 className="text-3xl font-semibold tracking-tight phone:text-2xl">
-        {isStudent ? 'Session status' : 'Scheduled session'}
-      </h1>
+      <h1 className="text-3xl font-semibold tracking-tight phone:text-2xl">{title}</h1>
       {query.isPending && <p role="status">Loading session…</p>}
       {query.error ? (
         <BookingError error={query.error} retry={() => void query.refetch()} />
       ) : (
         booking && (
           <div className={scheduleCard}>
-            <h2 className="text-lg font-semibold">
-              {isStudent
-                ? booking.state === 'scheduled'
-                  ? 'Waiting for your tutor'
-                  : 'Lesson started'
-                : {
-                    scheduled: 'Booking confirmed',
-                    active: 'In progress',
-                    ended: 'Completed',
-                    cancelled: 'Cancelled',
-                  }[booking.state]}
+            <h2 className="text-lg font-semibold" role={isStudent ? 'status' : undefined}>
+              {status}
             </h2>
             <BookingDetails booking={booking} />
             {isStudent && booking.state === 'scheduled' && (
               <p className="text-sm text-muted-foreground">
                 The lesson will begin when your tutor selects Start lesson.
+              </p>
+            )}
+            {isStudent && booking.state === 'active' && (
+              <p className="text-sm text-muted-foreground">
+                Activities will appear here when your tutor shares them.
+              </p>
+            )}
+            {isStudent && booking.state === 'ended' && (
+              <p className="text-sm text-muted-foreground">
+                The classroom is closed. Confirmed work is preserved.
               </p>
             )}
             {!isStudent && booking.canPrepare && (

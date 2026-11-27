@@ -86,6 +86,7 @@ async function request(path: string, options: RequestInit = {}) {
       invalid_image: 'Upload a valid PNG, JPEG or WebP image up to 2 MB.',
       task_version_conflict: 'A task changed. Review the latest version below before saving.',
       session_conflict: 'This session cannot be started.',
+      session_end_conflict: 'Only an active lesson can be ended.',
     };
     throw new LessonApiError(
       response.status,
@@ -154,8 +155,13 @@ export const sessionVersionsApi = {
         await request(`/sessions/${encodeURIComponent(id)}/content-version`, { signal })
       ).json()
     ),
-  start: async (id: string) =>
-    sessionVersion.parse(
-      await (await request(`/sessions/${encodeURIComponent(id)}/start`, { method: 'POST' })).json()
-    ),
+  start: (id: string) => changeSession(id, 'start'),
+  end: (id: string) => changeSession(id, 'end'),
 };
+
+async function changeSession(id: string, action: 'start' | 'end') {
+  const response = await request(`/sessions/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+  });
+  return sessionVersion.parse(await response.json());
+}

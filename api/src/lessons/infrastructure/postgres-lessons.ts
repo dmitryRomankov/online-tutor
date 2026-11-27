@@ -184,27 +184,40 @@ export class PostgresLessons
   }
 
   startSession(tutorId: string, id: string) {
+    return this.transitionSession(tutorId, id, 'active');
+  }
+
+  endSession(tutorId: string, id: string) {
+    return this.transitionSession(tutorId, id, 'ended');
+  }
+
+  private transitionSession(tutorId: string, id: string, target: 'active' | 'ended') {
+    const source = target === 'active' ? 'scheduled' : 'active';
+    const conflict = target === 'active' ? 'session_conflict' : 'session_end_conflict';
+    const statement =
+      target === 'active' ? 'SELECT public.start_session($1)' : 'SELECT public.end_session($1)';
     return this.run(async (client) => {
       await client.query('BEGIN');
       try {
         const read = await this.readSessionVersion(client, tutorId, id);
         if (!read) throw new LessonError('not_found');
-        if (read.state === 'scheduled') {
-          // The link guard locks both users before the session. Lesson publication locks the tutor.
+        if (read.state === source) {
+          // Lock the participants before the session, as live writes and publication do.
           await client.query('SELECT private.require_link($1)', [read.linkId]);
+        } else if (read.state !== target) {
+          throw new LessonError(conflict);
         }
+
         const {
           rows: [session],
         } = await client.query<{ state_code: SessionVersion['state'] }>(
           'SELECT state_code FROM public.sessions WHERE id=$1 FOR UPDATE',
           [id]
         );
-        if (session.state_code === 'scheduled') {
-          const prepared = await this.readSessionVersion(client, tutorId, id);
-          if (!prepared?.version) throw new LessonError('session_conflict');
-          await client.query('SELECT public.start_session($1)', [id]);
-        } else if (session.state_code !== 'active') {
-          throw new LessonError('session_conflict');
+        if (session.state_code === source) {
+          await client.query(statement, [id]);
+        } else if (session.state_code !== target) {
+          throw new LessonError(conflict);
         }
         const result = await this.readSessionVersion(client, tutorId, id);
         await client.query('COMMIT');
@@ -212,7 +225,7 @@ export class PostgresLessons
       } catch (error) {
         await client.query('ROLLBACK');
         if (error instanceof Error && 'code' in error && error.code === '23514') {
-          throw new LessonError('session_conflict');
+          throw new LessonError(conflict);
         }
         throw error;
       }

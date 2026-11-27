@@ -24,6 +24,7 @@ const errors = {
   version_conflict: [409, 'A newer version of this lesson was saved.'],
   task_version_conflict: [409, 'An attached task changed. Review the latest version.'],
   session_conflict: [409, 'This session cannot be started.'],
+  session_end_conflict: [409, 'Only an active lesson can be ended.'],
   unavailable: [503, 'Lesson storage is temporarily unavailable.'],
 } as const;
 

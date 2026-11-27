@@ -10,6 +10,7 @@ export interface SessionVersion {
 export interface SessionVersionsRepository {
   getSessionVersion(tutorId: string, id: string): Promise<SessionVersion | undefined>;
   startSession(tutorId: string, id: string): Promise<SessionVersion | undefined>;
+  endSession(tutorId: string, id: string): Promise<SessionVersion | undefined>;
 }
 
 export class SessionVersions {
@@ -21,6 +22,10 @@ export class SessionVersions {
 
   async start(actor: UserIdentity, id: string) {
     return this.publicVersion(await this.repository.startSession(requireTutor(actor), id));
+  }
+
+  async end(actor: UserIdentity, id: string) {
+    return this.publicVersion(await this.repository.endSession(requireTutor(actor), id));
   }
 
   private publicVersion(result?: SessionVersion): SessionVersion {

@@ -23,7 +23,10 @@ const scheduleErrors = {
   schedule_forbidden: [403, 'This action is unavailable for your profile.'],
   schedule_missing: [404, 'Booking, student connection, or lesson unavailable.'],
   schedule_conflict: [409, 'This submission ID already belongs to a different booking.'],
-  schedule_early: [409, 'Join opens at the scheduled start.'],
+  schedule_early: [
+    409,
+    'Join opens when your tutor starts the lesson or when the scheduled time arrives.',
+  ],
   schedule_closed: [409, 'This session is closed for entry.'],
   schedule_unavailable: [503, 'Scheduling is temporarily unavailable. Try again.'],
 } as const satisfies Record<ScheduleErrorCode, readonly [number, string]>;
@@ -55,7 +58,11 @@ class BookingResponse extends BookingTimes {
   @ApiProperty() title!: string;
   @ApiProperty() participantName!: string;
   @ApiProperty({ enum: ['scheduled', 'active', 'ended', 'cancelled'] }) state!: string;
-  @ApiProperty() canJoin!: boolean;
+  @ApiProperty({
+    description:
+      'Student entry is available after tutor Start or at the scheduled time for a connected booking.',
+  })
+  canJoin!: boolean;
   @ApiProperty() canPrepare!: boolean;
 }
 

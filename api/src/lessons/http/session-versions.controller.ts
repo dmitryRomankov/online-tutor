@@ -54,4 +54,16 @@ export class SessionVersionsController {
   start(@Req() request: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     return this.versions.start(request.user, id);
   }
+
+  @Post('end')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiResponse({ status: 200, type: SessionVersionResponse })
+  @apiError(409, 'Session cannot end in its current state.', {
+    code: 'session_end_conflict',
+    message: 'Only an active lesson can be ended.',
+  })
+  end(@Req() request: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
+    return this.versions.end(request.user, id);
+  }
 }

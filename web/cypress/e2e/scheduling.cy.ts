@@ -3,6 +3,8 @@ describe('US09 lesson scheduling', () => {
   const lessonId = 'f9ce7338-4cd0-4087-854f-8d5d15799a3d';
   const connectionId = '4244c58b-a1b7-43dc-865d-c58a54f6f244';
   const start = '2099-11-27T14:00:00.000Z';
+  const earlyMessage =
+    'Join opens when your tutor starts the lesson or when the scheduled time arrives.';
   const booking = {
     id,
     lessonId,
@@ -109,7 +111,7 @@ describe('US09 lesson scheduling', () => {
               }
             : {
                 statusCode: 409,
-                body: { message: 'Join opens at the scheduled start.' },
+                body: { code: 'schedule_early', message: earlyMessage },
               }
         )
       );
@@ -124,7 +126,7 @@ describe('US09 lesson scheduling', () => {
         });
       }).as('schedule');
       cy.visit(`/student/sessions/${id}`);
-      cy.contains('Join opens at the scheduled start.').should('be.visible');
+      cy.contains(earlyMessage).should('be.visible');
       cy.contains('a', 'Back to dashboard').click();
       cy.wait('@schedule');
       cy.contains('button', /^Join$/).should('be.disabled');
@@ -134,6 +136,50 @@ describe('US09 lesson scheduling', () => {
       cy.contains('Elena Martin').should('be.visible');
       cy.document().then((doc) => expect(doc.documentElement.scrollWidth).to.be.at.most(width));
       cy.screenshot(`student-session-${width}`, { capture: 'fullPage' });
+    });
+
+    it(`opens dashboard Join and direct entry after an early tutor start at ${width}px`, () => {
+      cy.viewport(width, width === 402 ? 874 : 1000);
+      cy.intercept('GET', '**/api/auth/me', { body: { user: student } });
+      cy.intercept('GET', '**/api/connections', {
+        body: [{ id: connectionId, person: tutor, linkedAt: start }],
+      });
+      let started = false;
+      const studentBooking = () => ({
+        ...booking,
+        participantName: 'Elena Martin',
+        state: started ? 'active' : 'scheduled',
+        canJoin: started,
+      });
+      cy.intercept('GET', '**/api/sessions', (req) =>
+        req.reply({
+          body: { serverNow: '2099-11-27T12:00:00.000Z', sessions: [studentBooking()] },
+        })
+      );
+      cy.intercept('GET', `**/api/sessions/${id}/entry`, (req) =>
+        req.reply(
+          started
+            ? { body: studentBooking() }
+            : { statusCode: 409, body: { code: 'schedule_early', message: earlyMessage } }
+        )
+      ).as('entry');
+
+      cy.visit(`/student/sessions/${id}`);
+      cy.wait('@entry').its('response.statusCode').should('eq', 409);
+      cy.contains(earlyMessage).should('be.visible');
+      cy.contains('a', 'Back to dashboard').click();
+      cy.contains('button', /^Join$/).should('be.disabled');
+      cy.contains(earlyMessage).should('be.visible');
+
+      cy.then(() => {
+        started = true;
+      });
+      cy.contains('a', /^Join$/, { timeout: 6500 }).click();
+      cy.wait('@entry').its('response.statusCode').should('eq', 200);
+      cy.contains('h1', 'Active classroom').should('be.visible');
+      cy.reload();
+      cy.wait('@entry').its('response.statusCode').should('eq', 200);
+      cy.contains('h1', 'Active classroom').should('be.visible');
     });
   }
 });

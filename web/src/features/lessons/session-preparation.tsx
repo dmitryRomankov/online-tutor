@@ -1,31 +1,15 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/features/auth/auth-provider';
-import { lessonErrorMessage, sessionVersionsApi } from './api';
-import { useLessonSession } from './useLessonSession';
+import { lessonErrorMessage } from './api';
+import { useSessionLifecycle } from './useSessionLifecycle';
 
 export function SessionPreparation({ id }: { id: string }) {
-  const { user } = useAuth();
-  const client = useQueryClient();
-  const queryKey = ['session-version', user?.id, id];
-  const session = useQuery({
-    queryKey,
-    queryFn: ({ signal }) => sessionVersionsApi.get(id, signal),
-    enabled: user?.role === 'TUTOR',
-    retry: false,
-  });
-  const start = useMutation({
-    mutationFn: () => sessionVersionsApi.start(id),
-    onSuccess: async (result) => {
-      await client.cancelQueries({ queryKey });
-      client.setQueryData(queryKey, result);
-    },
-    retry: false,
-  });
+  const { session, transition } = useSessionLifecycle(id);
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
 
-  useLessonSession(session.error ?? start.error);
   if (session.isPending) return <p role="status">Loading session…</p>;
   if (!session.data)
     return (
@@ -41,17 +25,27 @@ export function SessionPreparation({ id }: { id: string }) {
 
   const { state, version } = session.data;
   const scheduled = state === 'scheduled';
+  const active = state === 'active';
+  const showConfirmation = active && confirmingEnd;
+  const title = {
+    scheduled: 'Classroom preparation',
+    active: showConfirmation ? 'End lesson' : 'Active classroom',
+    ended: 'Session record',
+    cancelled: 'Session cancelled',
+  }[state];
+
   return (
     <section className="mx-auto max-w-4xl space-y-5">
-      <h1 className="text-3xl font-semibold tracking-tight phone:text-2xl">
-        {state === 'ended' ? 'Session record' : 'Classroom preparation'}
-      </h1>
+      <Button asChild variant="link" className="min-h-11 px-0">
+        <Link href="/tutor">Back to dashboard</Link>
+      </Button>
+      <h1 className="text-3xl font-semibold tracking-tight phone:text-2xl">{title}</h1>
       <div className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-6">
         <h2 className="text-lg font-semibold">
           {scheduled
             ? 'Lesson ready'
             : state === 'cancelled'
-              ? 'Session cancelled'
+              ? 'Booking cancelled'
               : 'Preserved lesson'}
         </h2>
         {version ? (
@@ -74,21 +68,70 @@ export function SessionPreparation({ id }: { id: string }) {
         {state === 'ended' && (
           <p className="text-sm text-muted-foreground">Completed session content is read-only.</p>
         )}
-        {start.error && scheduled && (
+        {transition.error && (scheduled || showConfirmation) && (
           <p role="alert" className="text-sm text-destructive">
-            {lessonErrorMessage(start.error)}
+            {lessonErrorMessage(transition.error)}
           </p>
         )}
         {scheduled && (
           <Button
             className="min-h-11 phone:w-full"
-            disabled={!version || start.isPending}
-            onClick={() => start.mutate()}
+            disabled={!version || transition.isPending}
+            onClick={() => transition.mutate('start')}
           >
-            {start.isPending ? 'Starting…' : 'Start lesson'}
+            {transition.isPending ? 'Starting…' : 'Start lesson'}
+          </Button>
+        )}
+        {active && !showConfirmation && (
+          <Button
+            variant="destructive"
+            className="min-h-11 phone:w-full"
+            onClick={() => {
+              transition.reset();
+              setConfirmingEnd(true);
+            }}
+          >
+            End lesson
           </Button>
         )}
       </div>
+      {showConfirmation && (
+        <section
+          aria-labelledby="confirm-end-heading"
+          className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-6"
+        >
+          <h2 id="confirm-end-heading" className="text-lg font-semibold">
+            End this lesson?
+          </h2>
+          <p className="text-sm">
+            Both participants will leave the live classroom. Confirmed work is preserved.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Changes that are still saving may be lost.
+          </p>
+          <div className="flex flex-wrap gap-3 phone:flex-col">
+            <Button
+              variant="outline"
+              className="min-h-11"
+              disabled={transition.isPending}
+              onClick={() => {
+                transition.reset();
+                setConfirmingEnd(false);
+              }}
+            >
+              Keep teaching
+            </Button>
+            <Button
+              variant="destructive"
+              className="min-h-11"
+              disabled={transition.isPending}
+              onClick={() => transition.mutate('end')}
+            >
+              {transition.isPending ? 'Ending…' : 'End lesson'}
+            </Button>
+          </div>
+        </section>
+      )}
     </section>
   );
 }
