@@ -1,6 +1,7 @@
 # Lesson Workspace
 
 A diploma project for one-to-one language lessons. The `online-tutor` repository contains a Next.js client in `web/`, a separate NestJS modular backend in `api/`, and shared scripts and configuration at the root.
+
 ## Run locally
 
 Use Node **24.19.0** (`nvm install` then `nvm use`, if you use nvm) and npm 10 or newer. The project deliberately requires Node 24 rather than the machine's older Node 20 default.
@@ -49,7 +50,7 @@ The frontend displays API liveness without requiring PostgreSQL. The `/classroom
 | Database             | PostgreSQL, Prisma CLI/client, PostgreSQL driver adapter and `pg`                                   |
 | Authentication       | Fixed-role registration, login/logout, current user, Argon2id and PostgreSQL-backed cookie sessions |
 | Media                | LiveKit browser SDK, React components/styles and server SDK; room/token features come later         |
-| Storage              | Azure Blob Storage SDK; upload features come later                                                  |
+| Storage              | Private Vercel Blob for lesson images                                                               |
 | Testing              | Jest, React Testing Library, Nest testing utilities, Supertest and Cypress                          |
 | Local infrastructure | Docker Compose for PostgreSQL; separate FE/BE Dockerfiles                                           |
 
@@ -84,9 +85,7 @@ docker build -f api/Dockerfile -t diploma-api .
 docker build -f web/Dockerfile -t diploma-web .
 ```
 
-For deployment, pass the public API, Socket.IO and LiveKit URLs as frontend **build arguments** (`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_LIVEKIT_URL`). Next.js embeds those values at build time. Give the backend its private settings at runtime and set `CLIENT_ORIGIN` to the frontend's exact HTTPS origin. Keep LiveKit API secrets, database credentials and Azure credentials on the backend.
-
-The Azure deployment option uses Container Apps with separate FE/BE containers, PostgreSQL Flexible Server, Blob Storage and LiveKit Cloud. Durable answer synchronization and multi-replica classroom broadcasts belong to the classroom features.
+For deployment, pass the public API, Socket.IO and LiveKit URLs as frontend **build arguments** (`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_LIVEKIT_URL`). Next.js embeds those values at build time. Give the backend its private settings at runtime and set `CLIENT_ORIGIN` to the frontend's exact HTTPS origin. Keep LiveKit API secrets, database credentials and Blob credentials on the backend.
 
 ### Vercel
 
@@ -98,6 +97,8 @@ Use the `online-tutor` repository root for the Vercel project. The project serve
 The API service sets `outputDirectory: "vercel-output"`. Its build puts only `app.mjs` there. Keep this separate from Nest's `dist`: Vercel can auto-detect `dist/app.js` as the final handler even when the build log names another entrypoint. Run `npm run test:api:deployment` to build and boot the isolated deployment output under CommonJS package scope, checking health and anonymous authentication.
 
 Enable Vercel system environment variables so the frontend uses the shared domain. Leave `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` unset for the same-origin defaults. Set `CLIENT_ORIGIN` to the exact frontend HTTPS origin for each deployed environment.
+
+Lesson image uploads require a private [Vercel Blob store](https://vercel.com/docs/vercel-blob/private-storage). Connect the store to the project, make `BLOB_STORE_ID` available to the API service, and enable Vercel OIDC. The SDK uses the runtime `VERCEL_OIDC_TOKEN`. For local development, a server-only `BLOB_READ_WRITE_TOKEN` for a separate private development store is also supported. Image bytes stay private and are served by the authorized API. The builder accepts PNG, JPEG and WebP images up to 2 MB and 12 megapixels. PostgreSQL integration tests use an in-memory Blob adapter with the real upload validation and database roles.
 
 To test both services locally, run this command from the repository root after `npm ci`.
 

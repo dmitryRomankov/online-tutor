@@ -27,7 +27,7 @@ export function AccountHome({
   children,
 }: {
   role: ProfileRole;
-  view?: 'dashboard' | 'students' | 'tasks';
+  view?: 'dashboard' | 'students' | 'tasks' | 'lessons';
   children?: React.ReactNode;
 }) {
   const auth = useAuth();
@@ -84,10 +84,16 @@ export function AccountHome({
 
   const isTutor = role === 'TUTOR';
   const profile = isTutor ? 'Tutor' : 'Student';
-  const viewTitle = { dashboard: 'Dashboard', students: 'Students', tasks: 'Task library' }[view];
+  const hasLibrary = view === 'tasks' || view === 'lessons';
+  const viewTitle = {
+    dashboard: 'Dashboard',
+    students: 'Students',
+    tasks: 'Task library',
+    lessons: 'Lesson library',
+  }[view];
   return (
     <main
-      className={`${styles.sheet} flex overflow-hidden ${view === 'tasks' ? 'bg-background' : 'bg-card'}`}
+      className={`${styles.sheet} flex overflow-hidden ${hasLibrary ? 'bg-background' : 'bg-card'}`}
     >
       <aside className={`account-sidebar ${styles.sidebar} flex flex-col phone:hidden`}>
         <Link className={`${authStyles.brand} px-2`} href={dashboardPath(role)}>
@@ -121,6 +127,15 @@ export function AccountHome({
               className="mt-2 flex min-h-11 items-center rounded-lg px-3 text-sm text-foreground hover:bg-info-surface aria-[current=page]:bg-info-surface aria-[current=page]:text-info"
             >
               Tasks
+            </Link>
+          )}
+          {isTutor && (
+            <Link
+              href="/tutor/lessons"
+              aria-current={view === 'lessons' ? 'page' : undefined}
+              className="mt-2 flex min-h-11 items-center rounded-lg px-3 text-sm text-foreground hover:bg-info-surface aria-[current=page]:bg-info-surface aria-[current=page]:text-info"
+            >
+              Lessons
             </Link>
           )}
         </nav>
@@ -162,7 +177,7 @@ export function AccountHome({
                 aria-label="Account menu"
               >
                 <span className="truncate">
-                  {view === 'tasks' ? 'Menu' : `${auth.user.name} ${auth.user.lastname}`}
+                  {hasLibrary ? 'Menu' : `${auth.user.name} ${auth.user.lastname}`}
                 </span>
                 <ChevronDown size={15} />
               </Button>
@@ -174,6 +189,11 @@ export function AccountHome({
               {isTutor && (
                 <DropdownMenuItem asChild>
                   <Link href="/tutor/tasks">Task library</Link>
+                </DropdownMenuItem>
+              )}
+              {isTutor && (
+                <DropdownMenuItem asChild>
+                  <Link href="/tutor/lessons">Lesson library</Link>
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
@@ -189,7 +209,7 @@ export function AccountHome({
           </DropdownMenu>
         </header>
         <section className="p-6 phone:p-4">
-          {view !== 'tasks' && (
+          {!hasLibrary && (
             <>
               <h1 className={authStyles.heading}>{viewTitle}</h1>
               <p className={authStyles.description}>{profile} workspace</p>
@@ -216,7 +236,7 @@ export function AccountHome({
               </p>
             </div>
           )}
-          {view === 'tasks' ? (
+          {hasLibrary ? (
             children
           ) : (
             <ConnectionsPanel key={`${auth.user.id}:${view}`} manage={view === 'students'} />

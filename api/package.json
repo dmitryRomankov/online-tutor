@@ -31,6 +31,7 @@
     "@nestjs/websockets": "12.3.2",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
+    "@vercel/blob": "2.9.0",
     "argon2": "0.45.1",
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
@@ -42,6 +43,7 @@
     "pg": "8.23.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "sharp": "0.35.5",
     "socket.io": "4.8.4",
     "zod": "4.6.7"
   },

@@ -46,6 +46,18 @@ async function authRequest(path: string, options: RequestInit = {}): Promise<Res
   }
 }
 
+function isAuthUser(value: unknown): value is AuthUser {
+  if (!value || typeof value !== 'object') return false;
+  const user = value as Record<string, unknown>;
+  return (
+    typeof user.id === 'string' &&
+    typeof user.email === 'string' &&
+    typeof user.name === 'string' &&
+    typeof user.lastname === 'string' &&
+    (user.role === 'TUTOR' || user.role === 'STUDENT')
+  );
+}
+
 async function readUser(response: Response): Promise<AuthUser> {
   if (!response.ok) {
     const fields: Partial<Record<RegistrationField, string>> = {};
@@ -70,24 +82,10 @@ async function readUser(response: Response): Promise<AuthUser> {
     }
     throw new AuthApiError(response.status, fields);
   }
-  const { user } = await response.json();
-  if (
-    !user ||
-    typeof user.id !== 'string' ||
-    typeof user.email !== 'string' ||
-    typeof user.name !== 'string' ||
-    typeof user.lastname !== 'string' ||
-    !['TUTOR', 'STUDENT'].includes(user.role)
-  ) {
-    throw new AuthApiError(502);
-  }
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    lastname: user.lastname,
-    role: user.role,
-  };
+  const body: unknown = await response.json().catch(() => null);
+  const user = body && typeof body === 'object' && 'user' in body ? body.user : undefined;
+  if (!isAuthUser(user)) throw new AuthApiError(502);
+  return user;
 }
 
 export async function getCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> {

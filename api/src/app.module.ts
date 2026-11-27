@@ -4,6 +4,7 @@ import { validateEnvironment } from './config/environment.js';
 import { HealthController } from './health/health.controller.js';
 import { ClassroomGateway } from './realtime/classroom.gateway.js';
 import { ConnectionsModule } from './connections/connections.module.js';
+import { LessonsModule } from './lessons/lessons.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { AuthModule } from './auth/auth.module.js';
 
@@ -13,6 +14,7 @@ import { AuthModule } from './auth/auth.module.js';
     AuthModule,
     ConnectionsModule,
     TasksModule,
+    LessonsModule,
   ],
   controllers: [HealthController],
   providers: [ClassroomGateway],
